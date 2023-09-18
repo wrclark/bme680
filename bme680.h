@@ -46,3 +46,16 @@ typedef struct {
 	bme680_calibration cal;
 
 } bme680_t;
+
+
+
+void print_calibration(bme680_calibration *);
+int bme680_calibrate(int, bme680_calibration *);
+int calc_hum_comp_2(uint32_t, bme680_t *);
+double calc_hum_comp_1(uint32_t, bme680_t *);
+int calc_press_comp_2(uint32_t, bme680_t *);
+double calc_press_comp_1(uint32_t, bme680_t *);
+int calc_temp_comp_2(uint32_t, bme680_t *);
+double calc_temp_comp_1(uint32_t, bme680_t*);
+
+

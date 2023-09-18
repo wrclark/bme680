@@ -7,9 +7,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#define MY_DEVICE "/dev/i2c-1"
-#define MY_DEVICE_ADDRESS 0x77
-
 int i2c_init(const char *dev, uint8_t addr) {
 	int fd = -1;
 
@@ -56,22 +53,3 @@ int i2c_write_reg(int fd, uint8_t reg, uint8_t value) {
 	return 0;
 }
 
-int main2(void) {
-
-
-	int res;
-	uint8_t cmd_buf[2] = {0x00, 0x00};
-	int fd = i2c_init(MY_DEVICE, MY_DEVICE_ADDRESS);
-
-
-	if (i2c_read_reg(fd, 0xD0, 1, (uint8_t *)&res) != 0) {
-		fprintf(stderr, "ddd\n");
-	}
-
-	printf("%X\n", res);
-
-	printf("%X\n", i2c_read_reg2(fd, 0xD0));
-
-	close(fd);
-	return 0;
-}

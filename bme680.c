@@ -1,4 +1,6 @@
 #include "bme680.h"
+#include "i2c.h"
+#include <stdio.h>
 
 const double const_array1[16] = {
 	1,
@@ -77,7 +79,7 @@ const int const_array2_int[16] = {
 };
 
 
-static double calc_temp_comp_1 ( uint32_t temp_adc , bme680_t *bme680) {
+double calc_temp_comp_1 ( uint32_t temp_adc , bme680_t *bme680) {
 
 	double var1, var2, temp_comp;
 	bme680_calibration *cal;
@@ -96,7 +98,7 @@ static double calc_temp_comp_1 ( uint32_t temp_adc , bme680_t *bme680) {
 	return temp_comp;
 }
 
-static int calc_temp_comp_2 (uint32_t temp_adc, bme680_t *bme680) {
+int calc_temp_comp_2 (uint32_t temp_adc, bme680_t *bme680) {
 
 	int32_t var1, var2, var3, temp_comp;
 	bme680_calibration *cal;
@@ -112,7 +114,7 @@ static int calc_temp_comp_2 (uint32_t temp_adc, bme680_t *bme680) {
 	return temp_comp;
 }
 
-static double calc_press_comp_1 ( uint32_t press_adc  ,  bme680_t *bme680 ) {
+double calc_press_comp_1 ( uint32_t press_adc  ,  bme680_t *bme680 ) {
 
 	double var1, var2, var3, press_comp;
 	bme680_calibration *cal;
@@ -137,7 +139,7 @@ static double calc_press_comp_1 ( uint32_t press_adc  ,  bme680_t *bme680 ) {
 }
 
 
-static int calc_press_comp_2  ( uint32_t press_adc ,  bme680_t *bme680 )  {
+int calc_press_comp_2  ( uint32_t press_adc ,  bme680_t *bme680 )  {
 
 	uint32_t var1, var2, var3, press_comp;
 	bme680_calibration *cal;
@@ -171,7 +173,7 @@ static int calc_press_comp_2  ( uint32_t press_adc ,  bme680_t *bme680 )  {
 
 }
 
-static double calc_hum_comp_1  ( uint32_t hum_adc  ,   bme680_t *bme680 ) {
+double calc_hum_comp_1  ( uint32_t hum_adc  ,   bme680_t *bme680 ) {
 	
 	double var1, var2, var3, var4, hum_comp;
 	bme680_calibration *cal;
@@ -189,7 +191,7 @@ static double calc_hum_comp_1  ( uint32_t hum_adc  ,   bme680_t *bme680 ) {
 }
 
 
-static int calc_hum_comp_2  (  uint32_t hum_adc  ,  bme680_t *bme680 ) {
+int calc_hum_comp_2  (  uint32_t hum_adc  ,  bme680_t *bme680 ) {
 
 	uint32_t  var1, var2, var3, var4, var5, var6, temp_scaled, hum_comp;
 	bme680_calibration *cal;
@@ -213,5 +215,114 @@ static int calc_hum_comp_2  (  uint32_t hum_adc  ,  bme680_t *bme680 ) {
 	return hum_comp;
 }
 
+int bme680_calibrate ( int fd , bme680_calibration *cal ) {
+
+	uint8_t buffer[3] = {0, 0 ,0};
+	int err = 0;
+
+	// start with temp params
+	
+	err |= i2c_read_reg(fd, 0xE9, 2, buffer);
+	cal->par_t1 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x8A, 2, buffer);
+	cal->par_t2 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x8C, 1, buffer);
+	cal->par_t3 = buffer[0];
+
+	// pressure
+	
+	err |= i2c_read_reg(fd, 0x8E, 2, buffer);
+	cal->par_p1 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x90, 2 , buffer);
+	cal->par_p2 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x92, 1, buffer);
+	cal->par_p3 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0x94, 2, buffer);
+	cal->par_p4 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x96, 2, buffer);
+	cal->par_p5 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x99, 1, buffer);
+	cal->par_p6 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0x98, 1, buffer); // strange order
+	cal->par_p7 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0x9C, 2, buffer);
+	cal->par_p8 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0x9E, 2, buffer);
+	cal->par_p9 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0xA0, 1, buffer);
+	cal->par_p10 = buffer[0];
+
+	// humidity
+	
+	err |= i2c_read_reg(fd, 0xE2, 2, buffer);
+	cal->par_h1 = (buffer[1] << 4) | (buffer[0] & 0xF);
+
+	err |= i2c_read_reg(fd, 0xE1, 2, buffer);
+	cal->par_h2 = (buffer[1] << 4) | ((buffer[0] >> 4) & 0xF);
+
+	err |= i2c_read_reg(fd, 0xE4, 1, buffer);
+	cal->par_h3 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0xE5, 1, buffer);
+	cal->par_h4 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0xE6, 1, buffer);
+	cal->par_h5 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0xE7, 1, buffer);
+	cal->par_h6 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0xE8, 1, buffer);
+	cal->par_h7 = buffer[0];
+
+	// gas
+	
+	err |= i2c_read_reg(fd, 0xED, 1, buffer);
+	cal->par_g1 = buffer[0];
+
+	err |= i2c_read_reg(fd, 0xEB, 2, buffer);
+	cal->par_g2 = (buffer[1] << 8) | buffer[0];
+
+	err |= i2c_read_reg(fd, 0xEE, 1, buffer);
+	cal->par_g2 = buffer[0];
+
+	//  todo more
 
 
+
+	return err;
+}
+
+void print_calibration  ( bme680_calibration *cal ) {
+	printf("par_t1: %d\n", cal->par_t1);
+	printf("par_t2: %d\n", cal->par_t2);
+	printf("par_t3: %d\n", cal->par_t3);
+	printf("par_p1: %d\n", cal->par_p1);
+	printf("par_p2: %d\n", cal->par_p2);
+	printf("par_p3: %d\n", cal->par_p3);
+	printf("par_p4: %d\n", cal->par_p4);
+	printf("par_p5: %d\n", cal->par_p5);
+	printf("par_p6: %d\n", cal->par_p6);
+	printf("par_p7: %d\n", cal->par_p7);
+	printf("par_p8: %d\n", cal->par_p8);
+	printf("par_p9: %d\n", cal->par_p9);
+	printf("par_p10: %d\n", cal->par_p10);
+	printf("par_h1: %d\n", cal->par_h1);
+	printf("par_h2: %d\n", cal->par_h2);
+	printf("par_h3: %d\n", cal->par_h3);
+	printf("par_h4: %d\n", cal->par_h4);
+	printf("par_h5: %d\n", cal->par_h5);
+	printf("par_h6: %d\n", cal->par_h6);
+	printf("par_h7: %d\n", cal->par_h7);
+}
