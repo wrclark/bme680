@@ -120,20 +120,23 @@ double calc_press_comp_1 ( uint32_t press_adc  ,  bme680_t *bme680 ) {
 	bme680_calibration *cal;
 
 	cal = &bme680->cal;
-	
-	var1 = (bme680->tfine_double / 2.0) - 64000.0;
+
+	var1 = ((double)bme680->tfine_int / 2.0) - 64000.0;
 	var2 = var1 * var1 * ((double)cal->par_p6 / 131072.0);
 	var2 = var2 + (var1 * (double)cal->par_p5 * 2.0);
 	var2 = (var2 / 4.0) + ((double)cal->par_p4 * 65536.0);
 	var1 = ((((double)cal->par_p3 * var1 * var1) / 16384.0) +
-			((double)cal->par_p2 * var1)) / 524288.0;
+		((double)cal->par_p2 * var1)) / 524288.0;
 	var1 = (1.0 + (var1 / 32768.0)) * (double)cal->par_p1;
 	press_comp = 1048576.0 - (double)press_adc;
 	press_comp = ((press_comp - (var2 / 4096.0)) * 6250.0) / var1;
 	var1 = ((double)cal->par_p9 * press_comp * press_comp) / 2147483648.0;
 	var2 = press_comp * ((double)cal->par_p8 / 32768.0);
-	var3 = (press_comp / 256.0) * (press_comp / 256.0) * (press_comp / 256.0) * (cal->par_p10 / 131072.0);
+	var3 = (press_comp / 256.0) * (press_comp / 256.0) *
+	       (press_comp / 256.0) * (cal->par_p10 / 131072.0);
 	press_comp = press_comp + (var1 + var2 + var3 + ((double)cal->par_p7 * 128.0)) / 16.0;
+
+
 	bme680->press_comp_double = press_comp;
 	return press_comp;
 }
@@ -141,7 +144,7 @@ double calc_press_comp_1 ( uint32_t press_adc  ,  bme680_t *bme680 ) {
 
 int calc_press_comp_2  ( uint32_t press_adc ,  bme680_t *bme680 )  {
 
-	uint32_t var1, var2, var3, press_comp;
+	int32_t var1, var2, var3, press_comp;
 	bme680_calibration *cal;
 
 	cal = &bme680->cal;
@@ -151,21 +154,22 @@ int calc_press_comp_2  ( uint32_t press_adc ,  bme680_t *bme680 )  {
 	var2 = var2 + ((var1 * (int32_t)cal->par_p5) << 1);
 	var2 = (var2 >> 2) + ((int32_t)cal->par_p4 << 16);
 	var1 = (((((var1 >> 2) * (var1 >> 2)) >> 13) *
-			((int32_t)cal->par_p3 << 5)) >> 3) + (((int32_t)cal->par_p2 * var1) >> 1);
+			((int32_t)cal->par_p3 << 5)) >> 3) +  (((int32_t)cal->par_p2 * var1) >> 1);
 	var1 = var1 >> 18;
 	var1 = ((32768 + var1) * (int32_t)cal->par_p1) >> 15;
-	press_comp = 1048576 - press_adc; // says "press_raw" in the bosch example
+	press_comp = 1048576 - press_adc; // bosch code pg 19 says "press_raw" here ???
 	press_comp = (uint32_t)((press_comp - (var2 >> 12)) * ((uint32_t)3125));
 	if (press_comp >= (1 << 30))
 		press_comp = ((press_comp / (uint32_t)var1) << 1);
 	else
 		press_comp = ((press_comp << 1) / (uint32_t)var1);
 	var1 = ((int32_t)cal->par_p9 * (int32_t)(((press_comp >> 3) *
-			(press_comp >> 3)) >> 13)) >> 12;
+				(press_comp >> 3)) >> 13)) >> 12;
 	var2 = ((int32_t)(press_comp >> 2) * (int32_t)cal->par_p8) >> 13;
 	var3 = ((int32_t)(press_comp >> 8) * (int32_t)(press_comp >> 8) *
 			(int32_t)(press_comp >> 8) * (int32_t)cal->par_p10) >> 17;
 	press_comp = (int32_t)(press_comp) + ((var1 + var2 + var3 + ((int32_t)cal->par_p7 << 7)) >> 4);
+
 	
 	bme680->press_comp_int = press_comp;
 	
@@ -175,17 +179,20 @@ int calc_press_comp_2  ( uint32_t press_adc ,  bme680_t *bme680 )  {
 
 double calc_hum_comp_1  ( uint32_t hum_adc  ,   bme680_t *bme680 ) {
 	
-	double var1, var2, var3, var4, hum_comp;
+	double var1, var2, var3, var4, hum_comp, temp_comp;
 	bme680_calibration *cal;
-	cal = &bme680->cal;
 
-	var1 = hum_adc - (((double)cal->par_h1 * 16.0) + (((double)cal->par_h3 / 2.0) * bme680->temp_comp_double));
+	cal = &bme680->cal;
+	temp_comp = bme680->temp_comp_double;
+
+	var1 = hum_adc - (((double)cal->par_h1 * 16.0) + (((double)cal->par_h3 / 2.0) * temp_comp));
 	var2 = var1 * (((double)cal->par_h2 / 262144.0) * (1.0 + (((double)cal->par_h4 / 16384.0) *
-				bme680->temp_comp_double) + (((double)cal->par_h5 / 1048576.0) *
-					bme680->temp_comp_double * bme680->temp_comp_double)));
+				temp_comp) + (((double)cal->par_h5 / 1048576.0) * temp_comp * temp_comp)));
 	var3 = (double)cal->par_h6 / 16384.0;
 	var4 = (double)cal->par_h7 / 2097152.0;
-	hum_comp = var2 + ((var3 + (var4 * bme680->temp_comp_double)) * var2 * var2);
+	hum_comp = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
+
+
 	bme680->hum_comp_double = hum_comp;
 	return hum_comp;
 }
@@ -193,24 +200,25 @@ double calc_hum_comp_1  ( uint32_t hum_adc  ,   bme680_t *bme680 ) {
 
 int calc_hum_comp_2  (  uint32_t hum_adc  ,  bme680_t *bme680 ) {
 
-	uint32_t  var1, var2, var3, var4, var5, var6, temp_scaled, hum_comp;
+	int32_t  var1, var2, var3, var4, var5, var6, temp_scaled, hum_comp;
 	bme680_calibration *cal;
 	
 	cal = &bme680->cal;
-
-	temp_scaled = (int32_t)(bme680->temp_comp_int);
+	
+	temp_scaled = (int32_t)bme680->temp_comp_int;
 	var1 = (int32_t)hum_adc - (int32_t)((int32_t)cal->par_h1 << 4) -
 		(((temp_scaled * (int32_t)cal->par_h3) / ((int32_t)100)) >> 1);
-	var2 = ((int32_t)cal->par_h2 * (((temp_scaled *
-		(int32_t)cal->par_h4) / ((int32_t)100)) +
+	var2 = ((int32_t)cal->par_h2 * (((temp_scaled * (int32_t)cal->par_h4) / ((int32_t)100)) +
 		(((temp_scaled * ((temp_scaled * (int32_t)cal->par_h5) /
 		((int32_t)100))) >> 6) / ((int32_t)100)) + ((int32_t)(1 << 14)))) >> 10;
 	var3 = var1 * var2;
 	var4 = (((int32_t)cal->par_h6 << 7) +
-		((temp_scaled * (int32_t)cal->par_h7) / ((int32_t)100))) >> 4;
+			((temp_scaled * (int32_t)cal->par_h7) / ((int32_t)100))) >> 4;
 	var5 = ((var3 >> 14) * (var3 >> 14)) >> 10;
 	var6 = (var4 * var5) >> 1;
-	hum_comp = (((var3 + var6) >> 10) * ((int32_t)1000)) >> 12;
+	hum_comp = (((var3 + var6) >> 10) * ((int32_t) 1000)) >> 12;
+
+
 	bme680->hum_comp_int = hum_comp;
 	return hum_comp;
 }
@@ -269,7 +277,7 @@ int bme680_calibrate ( int fd , bme680_calibration *cal ) {
 	cal->par_h1 = (buffer[1] << 4) | (buffer[0] & 0xF);
 
 	err |= i2c_read_reg(fd, 0xE1, 2, buffer);
-	cal->par_h2 = (buffer[1] << 4) | ((buffer[0] >> 4) & 0xF);
+	cal->par_h2 = (buffer[0] << 4) | ((buffer[1] >> 4) & 0xF);
 
 	err |= i2c_read_reg(fd, 0xE4, 1, buffer);
 	cal->par_h3 = buffer[0];

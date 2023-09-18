@@ -24,7 +24,7 @@ int main(){
 	uint8_t ctrl_meas, ctrl_hum;
 
 	uint8_t osrs_t, osrs_p, osrs_h, ctrl_mode;
-	osrs_t = osrs_p = osrs_h = 0b011;
+	osrs_t = osrs_p = osrs_h = 0b110;
 	ctrl_mode = 0;
 
 	ctrl_meas = (osrs_t << 5) | (osrs_p << 2) | ctrl_mode;
@@ -72,11 +72,11 @@ int main(){
 	printf("temperature: %g oC (floating-point)\n", temperature);
 	
 	int temperature2 = calc_temp_comp_2 (temp_adc,  &bme680 );
-	printf("temperature: %d oC (integer)\n", temperature2);
+	printf("temperature: %d oC (integer x100)\n", temperature2);
 
 
 	double pressure = calc_press_comp_1 ( press_adc  , &bme680 );
-	printf("pressure: %g Pa (floating-point)\n", pressure);
+	printf("pressure: %g Pa or %g bar (floating-point)\n", pressure, pressure/1e5);
 
 	int pressure2 = calc_press_comp_2 (press_adc  ,  &bme680 );
 	printf("pressure: %d Pa (integer)\n", pressure2);
@@ -85,7 +85,7 @@ int main(){
 	printf("humidity: %g (floating-point)\n", humidity);
 
 	int humidity2 = calc_hum_comp_2 ( hum_adc,  &bme680 );
-	printf("humidity: %d (integer)\n", humidity2);
+	printf("humidity: %d (integer x1000)\n", humidity2);
 
 	close(fd);
 	return 0;
