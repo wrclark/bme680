@@ -121,7 +121,7 @@ double calc_press_comp_1 ( uint32_t press_adc  ,  bme680_t *bme680 ) {
 
 	cal = &bme680->cal;
 
-	var1 = ((double)bme680->tfine_int / 2.0) - 64000.0;
+	var1 = ((double)bme680->tfine_double / 2.0) - 64000.0;
 	var2 = var1 * var1 * ((double)cal->par_p6 / 131072.0);
 	var2 = var2 + (var1 * (double)cal->par_p5 * 2.0);
 	var2 = (var2 / 4.0) + ((double)cal->par_p4 * 65536.0);
