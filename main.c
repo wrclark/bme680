@@ -1,7 +1,10 @@
+/* usleep() */
+#define _DEFAULT_SOURCE
+
 #include <stdio.h>
+#include <unistd.h>
 #include "bme680.h"
 #include "i2c.h"
-#include <unistd.h>
 
 #define DEVICE "/dev/i2c-1"
 #define ADDRESS 0x77

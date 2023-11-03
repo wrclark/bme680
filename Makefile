@@ -1,4 +1,17 @@
-all:
-	gcc -O2 -std=gnu99 -Wall -Wextra main.c bme680.c i2c.c -o bme680
-hedgehog:
-	gcc -O2 -std=gnu99 -Wall -Wextra hedgehog.c bme680.c i2c.c -o hedgehog
+CC=gcc
+OPT=-O2 -std=c99 -Wall -Wextra
+CFLAGS=-I. $(OPT)
+CFILES=$(wildcard ./*.c)
+OBJECTS=$(patsubst %.c,%.o, $(CFILES))
+BINARY=bme680
+
+all: $(BINARY)
+
+$(BINARY): $(OBJECTS)
+	$(CC) $^ -o $@
+
+%.o:%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	@rm -rf $(OBJECTS) $(BINARY)
