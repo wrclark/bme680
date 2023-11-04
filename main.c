@@ -16,7 +16,7 @@ int linux_i2c_read   (uint8_t reg, uint8_t *dst, uint32_t size);
 int linux_i2c_write  (uint8_t reg, uint8_t *src, uint32_t size);
 int linux_i2c_deinit (void);
 
-int main(){
+int main() {
 	
 	bme680_t bme680;
 	uint8_t mode;
@@ -52,13 +52,11 @@ int main(){
 	/* debug */
 	bme680_print_calibration(&bme680);
 
-
 	/* 6. set up device config */
 	bme680.cfg.osrs_t = BME680_OVERSAMPLE_16X;
 	bme680.cfg.osrs_p = BME680_OVERSAMPLE_16X;
 	bme680.cfg.osrs_h = BME680_OVERSAMPLE_8X;
 	bme680.cfg.filter = BME680_IIR_COEFF_63;
-
 
 	/* 7. write config to device and set off conversion */
 	if (bme680_start(&bme680) != 0) {
@@ -74,17 +72,12 @@ int main(){
 		exit(EXIT_FAILURE);
 	}
 
-
 	/* 9. read the ADC's and perform a conversion */
 	if (bme680_read(&bme680) != 0) {
 		fprintf(stderr, "bme680_read()\n");
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
-
-	printf("adc_temp: %d\n", bme680.adc.temp);
-	printf("adc_press: %d\n", bme680.adc.press);
-	printf("adc_hum: %d\n", bme680.adc.hum);
 
 	/* 10. use data ! */
 
