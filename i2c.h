@@ -1,9 +1,13 @@
-#pragma once
+#ifndef I2C_H
+#define I2C_H
 
 #include <stdint.h>
 
-int i2c_init(const char *, uint8_t);
-int i2c_read_reg(int, uint8_t, uint8_t, uint8_t *);
-uint8_t i2c_read_reg2(uint8_t, uint8_t);
-int i2c_write_reg(int, uint8_t, uint8_t);
+#define I2C_OK  0
+#define I2C_ERR 1
 
+int i2c_init      (const char *dev, uint8_t addr);
+int i2c_read_reg  (int fd, uint8_t reg, uint8_t *dst, uint32_t size);
+int i2c_write_reg (int fd, uint8_t reg, uint8_t value);
+
+#endif

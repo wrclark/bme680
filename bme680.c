@@ -13,7 +13,8 @@ static void calc_press_comp(bme680_t *bme680);
 static void calc_hum_comp(bme680_t *bme680);
 
 
-static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t *src, uint32_t size) {
+static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t value) {
+
 	uint8_t tmp;
 
 	if (BME680_IS_SPI(bme680->mode)) {
@@ -23,14 +24,14 @@ static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t *src, uint32_t size)
 		}
 	}
 
-	return bme680->dev.write(reg, src, size);
+	return bme680->dev.write(reg, value);
 }
 
 static int write_spi_page(bme680_t *bme680, uint8_t page_value) {
 	uint8_t status_byte = (!!page_value) << 4; 
-	
-	return bme680->dev.write(REG_STATUS, &status_byte, 1);
+	return bme680->dev.write(REG_STATUS, status_byte);
 }
+
 
 static int read_dev(bme680_t *bme680, uint8_t reg, uint8_t *dst, uint32_t size) {
 
@@ -87,7 +88,7 @@ int bme680_reset(bme680_t *bme680) {
 	uint8_t magic = 0xB6;
 	int ret;
 	
-	ret = write_dev(bme680, reg, &magic, 1); 
+	ret = write_dev(bme680, reg, magic); 
 	usleep(5000); /* sleep for 5 ms */
 	return ret;
 }
@@ -102,19 +103,19 @@ int bme680_start(bme680_t *bme680) {
 	/* ctrl_meas. the last 0 is ticked on to enable forced mode,
 	 * but the config has to be written fist. strange behaviour.
 	 */
-	meas   = (bme680->cfg.osrs_t) << 5 | (bme680->cfg.osrs_p) << 2; 
-	hum    =  bme680->cfg.osrs_h;
-	filter = (bme680->cfg.filter) << 2;
+	meas   = bme680->cfg.osrs_t << 5 | bme680->cfg.osrs_p << 2; 
+	hum    = bme680->cfg.osrs_h;
+	filter = bme680->cfg.filter << 2;
 
-	err |= write_dev(bme680, REG_CTRL_MEAS, &meas, 1);
-	err |= write_dev(bme680, REG_CTRL_HUM,  &hum,  1);
-	err |= write_dev(bme680, REG_CONFIG,  &filter, 1);
+	err |= write_dev(bme680, REG_CTRL_MEAS, meas);
+	err |= write_dev(bme680, REG_CTRL_HUM,  hum);
+	err |= write_dev(bme680, REG_CONFIG,  filter);
 
 	// TODO: gas stuff
 	
 	/* Now, re-send `meas' but LSb set to 1 to enable a forced conversion */
 	meas |= 1;
-	err  |= write_dev(bme680, REG_CTRL_MEAS, &meas, 1);
+	err  |= write_dev(bme680, REG_CTRL_MEAS, meas);
 
 	return err;
 }
@@ -137,7 +138,7 @@ int bme680_poll(bme680_t *bme680) {
 	} while (((meas_status >> 5) & 1) && attempts++ < BME680_MAX_POLL_ATTEMPTS && !err);
 
 	if (attempts == BME680_MAX_POLL_ATTEMPTS) {
-		err = 1;
+		err = 2;
 	}
 
 	return err;

@@ -13,7 +13,7 @@ int i2c_dev_fd;
 
 int linux_i2c_init   (void);
 int linux_i2c_read   (uint8_t reg, uint8_t *dst, uint32_t size);
-int linux_i2c_write  (uint8_t reg, uint8_t *src, uint32_t size);
+int linux_i2c_write  (uint8_t reg, uint8_t value);
 int linux_i2c_deinit (void);
 
 int main() {
@@ -26,7 +26,6 @@ int main() {
 	bme680.dev.read   = linux_i2c_read;
 	bme680.dev.write  = linux_i2c_write;
 	bme680.dev.deinit = linux_i2c_deinit;
-	bme680.dev.xfer = NULL;
 
 	/* 2. set the device mode */
 	mode = BME680_MODE_FLOAT | BME680_I2C;
@@ -53,10 +52,10 @@ int main() {
 	bme680_print_calibration(&bme680);
 
 	/* 6. set up device config */
-	bme680.cfg.osrs_t = BME680_OVERSAMPLE_16X;
-	bme680.cfg.osrs_p = BME680_OVERSAMPLE_16X;
-	bme680.cfg.osrs_h = BME680_OVERSAMPLE_8X;
-	bme680.cfg.filter = BME680_IIR_COEFF_63;
+	bme680.cfg.osrs_t = BME680_OVERSAMPLE_X16;
+	bme680.cfg.osrs_p = BME680_OVERSAMPLE_X16;
+	bme680.cfg.osrs_h = BME680_OVERSAMPLE_X8;
+	bme680.cfg.filter = BME680_IIR_COEFF_127;
 
 	/* 7. write config to device and set off conversion */
 	if (bme680_start(&bme680) != 0) {
@@ -100,12 +99,15 @@ int main() {
 	return 0;
 }
 
+
 // STUBS
 
 int linux_i2c_init (void) {
-	puts("linux_i2c_init");
-	int ret = i2c_init(DEVICE, ADDRESS);
-	if (ret > 0) {
+
+	int ret;
+	puts("i2c_init");
+
+	if ((ret = i2c_init(DEVICE, ADDRESS)) > 0) {
 		i2c_dev_fd = ret;
 		return 0;
 	}
@@ -115,20 +117,20 @@ int linux_i2c_init (void) {
 
 int linux_i2c_read (uint8_t reg, uint8_t *dst, uint32_t size) {
 
-	int i;
-	int ret;
+	uint32_t i;
 
-	printf("linux_i2c_read: %X (%d) [", reg, size);
+	printf("i2c_read: %.2X (%d) [", reg, size);
 
-	ret = i2c_read_reg(i2c_dev_fd, reg, (uint8_t)size, dst);
-	if (ret != 0) {
-		return -1;
+	if (i2c_read_reg(i2c_dev_fd, reg, dst, size) != I2C_OK) {
+		return 1;
 	}
 
 	for(i=0; i<size; i++) {
-		printf("%X", dst[i]);
+
+		printf("%.2X", dst[i]);
+
 		if (i < (size - 1)) {
-			printf(",");
+			printf(", ");
 		}
 	}
 
@@ -137,27 +139,21 @@ int linux_i2c_read (uint8_t reg, uint8_t *dst, uint32_t size) {
 	return 0;
 }
 
-int linux_i2c_write (uint8_t reg, uint8_t *src, uint32_t size) {
+int linux_i2c_write (uint8_t reg, uint8_t value) {
 
-	int i;
+	printf("i2c_write: %.2X [%.2X]\n", reg, value);
 
-	printf("linux_i2c_write: %X (%d) [", reg, size);
-	for(i=0; i<size; i++) {
-		printf("%X", src[i]);
-		if (i < (size - 1)) {
-			printf(",");
-		}
-	}
-	printf("]\n");
-
-	if (i2c_write_reg(i2c_dev_fd, reg, *src) != 0) {
+	if (i2c_write_reg(i2c_dev_fd, reg, value) != I2C_OK) {
 		return 1;
 	}
+
 	return 0;
 }
 
 int linux_i2c_deinit (void) {
-	puts("linux_i2c_deinit");
+
+	puts("i2c_deinit");
 	close(i2c_dev_fd);
+
 	return 0;
 }

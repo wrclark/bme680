@@ -14,14 +14,12 @@
 #define BME680_MODE_INT   2
 #define BME680_MODE_FLOAT 0
 
-#define BME680_MAX_XFER_SIZE 128
-
 /* config values */
-#define BME680_OVERSAMPLE_1X  0b001
-#define BME680_OVERSAMPLE_2X  0b010
-#define BME680_OVERSAMPLE_4X  0b011
-#define BME680_OVERSAMPLE_8X  0b100
-#define BME680_OVERSAMPLE_16X 0b101
+#define BME680_OVERSAMPLE_X1  0b001
+#define BME680_OVERSAMPLE_X2  0b010
+#define BME680_OVERSAMPLE_X4  0b011
+#define BME680_OVERSAMPLE_X8  0b100
+#define BME680_OVERSAMPLE_X16 0b101
 
 /* IIR filter */
 #define BME680_IIR_COEFF_0   0b000
@@ -38,8 +36,7 @@
 struct bme680_dev {
 	int (*init)   (void);
 	int (*read)   (uint8_t reg, uint8_t *dst, uint32_t size);
-	int (*write)  (uint8_t reg, uint8_t *src, uint32_t size);
-	int (*xfer)   (uint8_t reg, uint8_t *src, uint8_t *dst, uint32_t size);
+	int (*write)  (uint8_t reg, uint8_t value);
 	int (*deinit) (void);
 };
 
