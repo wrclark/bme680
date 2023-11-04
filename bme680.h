@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define BME680_IS_SPI(m)      ((m & 1) == 1)
+#define BME680_IS_FLOAT(m)   (((m >> 1) & 1) == 0)
+
 /* connection modes */
 #define BME680_SPI   1
 #define BME680_I2C   0
@@ -79,7 +82,7 @@ struct bme680_config {
 	uint8_t osrs_t;
 	uint8_t osrs_p;
 	uint8_t osrs_h;
-	uint8_t fir;
+	uint8_t filter;
 	uint8_t heater_setpoint[10];
 	uint8_t heater_exposure_ms[10];
 	uint8_t heater_exposure_scalar[10];
@@ -114,15 +117,21 @@ struct bme680 {
 	struct bme680_config cfg;
 	struct bme680_adc adc;
 	uint8_t mode;
+	uint8_t spi_page; 
 };
 
 typedef struct bme680 bme680_t;
 
 
-int bme680_init(bme680_t *bme680);
+int bme680_init(bme680_t *bme680, uint8_t mode);
+int bme680_deinit(bme680_t *bme680);
+int bme680_reset(bme680_t *bme680);
 int bme680_calibrate(bme680_t *bme680);
+int bme680_start(bme680_t *bme680);
+int bme680_poll(bme680_t *bme680);
+int bme680_read(bme680_t *bme680);
 
 
-
+void bme680_print_calibration(bme680_t *bme680);
 
 #endif

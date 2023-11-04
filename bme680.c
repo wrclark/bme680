@@ -1,17 +1,68 @@
+#define _DEFAULT_SOURCE
+
+#include <stdio.h>
+#include <unistd.h>
+
 #include "bme680.h"
 #include "registers.h"
 
+static int write_spi_page(bme680_t *bme680, uint8_t page_value);
+
+static void calc_temp_comp(bme680_t *bme680);
+static void calc_press_comp(bme680_t *bme680);
+static void calc_hum_comp(bme680_t *bme680);
 
 
-int bme680_init(bme680_t *bme680) {
+static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t *src, uint32_t size) {
+	uint8_t tmp;
+
+	if (BME680_IS_SPI(bme680->mode)) {
+		if ((tmp = REG_SPI_PAGE(reg)) != bme680->spi_page) {
+			(void) write_spi_page(bme680, tmp);
+			bme680->spi_page = tmp;
+		}
+	}
+
+	return bme680->dev.write(reg, src, size);
+}
+
+static int write_spi_page(bme680_t *bme680, uint8_t page_value) {
+	uint8_t status_byte = (!!page_value) << 4; 
+	
+	return bme680->dev.write(REG_STATUS, &status_byte, 1);
+}
+
+static int read_dev(bme680_t *bme680, uint8_t reg, uint8_t *dst, uint32_t size) {
+
+	uint8_t tmp;
+
+	/* Might have to change the SPI page for this reg if using SPI */
+	if (BME680_IS_SPI(bme680->mode)) {
+		if ((tmp = REG_SPI_PAGE(reg)) != bme680->spi_page) {
+			(void) write_spi_page(bme680, tmp);
+			bme680->spi_page = tmp;
+		}
+	}
+
+	/* some registers, like id and reset, have diff addr in i2c/spi */
+	return bme680->dev.read(reg, dst, size);
+}
+
+int bme680_init(bme680_t *bme680, uint8_t mode) {
 
 	uint8_t car;
+	uint8_t id_reg;
+
+	bme680->mode = mode;
 
 	if (bme680->dev.init() != 0) {
 		return 1;
 	}
 
-	if (bme680->dev.read(REG_ID, &car, 1) != 0) {
+	/* id reg depends on spi or i2c */
+	id_reg = BME680_IS_SPI(mode) ? 0x50 : REG_ID;
+
+	if (read_dev(bme680, id_reg, &car, 1) != 0) {
 		return 1;
 	}
 
@@ -22,6 +73,112 @@ int bme680_init(bme680_t *bme680) {
 	return 0;
 }
 
+/* for completion */
+int bme680_deinit(bme680_t *bme680) {
+	if (bme680->dev.deinit) {
+		bme680->dev.deinit();
+	}
+
+	return 0;
+}
+
+int bme680_reset(bme680_t *bme680) {
+	uint8_t reg = BME680_IS_SPI(bme680->mode) ? 0x60 : REG_RESET;
+	uint8_t magic = 0xB6;
+	int ret;
+	
+	ret = write_dev(bme680, reg, &magic, 1); 
+	usleep(5000); /* sleep for 5 ms */
+	return ret;
+}
+
+
+/* configure device and trigger forced mode reading on device */
+int bme680_start(bme680_t *bme680) {
+
+	uint8_t meas, hum, filter, err;
+	meas = hum = filter = err = 0;
+
+	/* ctrl_meas. the last 0 is ticked on to enable forced mode,
+	 * but the config has to be written fist. strange behaviour.
+	 */
+	meas   = (bme680->cfg.osrs_t) << 5 | (bme680->cfg.osrs_p) << 2; 
+	hum    =  bme680->cfg.osrs_h;
+	filter = (bme680->cfg.filter) << 2;
+
+	err |= write_dev(bme680, REG_CTRL_MEAS, &meas, 1);
+	err |= write_dev(bme680, REG_CTRL_HUM,  &hum,  1);
+	err |= write_dev(bme680, REG_CONFIG,  &filter, 1);
+
+	// TODO: gas stuff
+	
+	/* Now, re-send `meas' but LSb set to 1 to enable a forced conversion */
+	meas |= 1;
+	err  |= write_dev(bme680, REG_CTRL_MEAS, &meas, 1);
+
+	return err;
+}
+
+
+/* blocks until the device claims all scheduled conversions are done. 
+ * don't call out of order.
+ */
+
+#define BME680_MAX_POLL_ATTEMPTS 100
+int bme680_poll(bme680_t *bme680) {
+
+	uint8_t meas_status = 0;
+	int err = 0;
+	int attempts = 0;
+
+	do {
+		usleep(2000);
+		err |= read_dev(bme680, REG_EAS_STATUS, &meas_status, 1);
+	} while (((meas_status >> 5) & 1) && attempts++ < BME680_MAX_POLL_ATTEMPTS && !err);
+
+	if (attempts == BME680_MAX_POLL_ATTEMPTS) {
+		err = 1;
+	}
+
+	return err;
+}
+
+/* assume start'd and poll'd */
+int bme680_read(bme680_t *bme680) {
+
+	/* begin by reading ADCs */
+	uint8_t buffer[3] = {0, 0 ,0};
+	int err = 0;
+
+	err |= read_dev(bme680, 0x22, buffer, 3);
+	bme680->adc.temp = (buffer[0] << 12) | (buffer[1] << 4) | (buffer[2] >> 4);
+	
+	err |= read_dev(bme680, 0x1F, buffer, 3);
+	bme680->adc.press = (buffer[0] << 12) | (buffer[1] << 4) | (buffer[2] >> 4);
+
+	err |= read_dev(bme680, 0x25, buffer, 2);
+	bme680->adc.hum = (buffer[0] << 8) | buffer[1];
+
+	/* adc readings are only 20-bit when the IIR filter is enabled.
+	 * otherwise, it depends on the oversample settings.
+	 * note: humidity is not IIR filtered, and always 16-bit.
+	 * IIR filter on (any level) -> 20-bit
+	 * IIR filter off -> 16 + (osrs_x - 1) bits. adc >> (osrs_p -1);?
+	 * */
+	if (bme680->cfg.filter == BME680_IIR_COEFF_0) {
+		bme680->adc.temp  >>= (bme680->cfg.osrs_t - 1);
+		bme680->adc.press >>= (bme680->cfg.osrs_p - 1);
+	}
+
+	/* read/convert in order ..*/
+	calc_temp_comp(bme680);
+	calc_press_comp(bme680);
+	calc_hum_comp(bme680);
+
+	return err;
+}
+
+/********************************************************************/
 
 static double const_array1[16] = {
 	1, 1, 1, 1, 1, 0.99, 1, 0.992, 1,
@@ -47,7 +204,8 @@ static int const_array2_int[16] = {
 	2000000, 1000000, 500000, 250000, 125000
 };
 
-
+/********************************************************************/
+/********************************************************************/
 static void calc_temp_comp_1 (bme680_t *bme680) {
 
 	double var1, var2, temp_comp;
@@ -74,6 +232,16 @@ static void calc_temp_comp_2 (bme680_t *bme680) {
 	bme680->icomp.temp = temp_comp;
 }
 
+static void calc_temp_comp (bme680_t *bme680) {
+	if (BME680_IS_FLOAT(bme680->mode)) {
+		calc_temp_comp_1(bme680);
+	} else {
+		calc_temp_comp_2(bme680);
+	}
+}
+
+/********************************************************************/
+/********************************************************************/
 static void calc_press_comp_1 (bme680_t *bme680) {
 
 	double var1, var2, var3, press_comp;
@@ -94,7 +262,6 @@ static void calc_press_comp_1 (bme680_t *bme680) {
 	press_comp = press_comp + (var1 + var2 + var3 + ((double)bme680->cal.par_p7 * 128.0)) / 16.0;
 	bme680->fcomp.press = press_comp;
 }
-
 
 static void calc_press_comp_2 (bme680_t *bme680 )  {
 
@@ -121,9 +288,18 @@ static void calc_press_comp_2 (bme680_t *bme680 )  {
 			(int32_t)(press_comp >> 8) * (int32_t)bme680->cal.par_p10) >> 17;
 	press_comp = (int32_t)(press_comp) + ((var1 + var2 + var3 + ((int32_t)bme680->cal.par_p7 << 7)) >> 4);
 	bme680->icomp.press = press_comp;
-
 }
 
+static void calc_press_comp (bme680_t *bme680) {
+	if (BME680_IS_FLOAT(bme680->mode)) {
+		calc_press_comp_1(bme680);
+	} else {
+		calc_press_comp_2(bme680);
+	}
+}
+
+/********************************************************************/
+/********************************************************************/
 static void calc_hum_comp_1 (bme680_t *bme680) {
 	
 	double var1, var2, var3, var4, hum_comp, temp_comp;
@@ -139,7 +315,6 @@ static void calc_hum_comp_1 (bme680_t *bme680) {
 
 	bme680->fcomp.hum = hum_comp;
 }
-
 
 static void calc_hum_comp_2 (bme680_t *bme680) {
 
@@ -161,6 +336,15 @@ static void calc_hum_comp_2 (bme680_t *bme680) {
 	bme680->icomp.hum = hum_comp;
 }
 
+static void calc_hum_comp (bme680_t *bme680) {
+	if (BME680_IS_FLOAT(bme680->mode)) {
+		calc_hum_comp_1(bme680);
+	} else {
+		calc_hum_comp_2(bme680);
+	}
+}
+
+/********************************************************************/
 
 int bme680_calibrate(bme680_t *bme680) {
 
@@ -169,79 +353,79 @@ int bme680_calibrate(bme680_t *bme680) {
 
 	// start with temp params
 	
-	err |= bme680->dev.read(0xE9, buffer, 2);
+	err |= read_dev(bme680, 0xE9, buffer, 2);
 	bme680->cal.par_t1 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x8A, buffer, 2);
+	err |= read_dev(bme680, 0x8A, buffer, 2);
 	bme680->cal.par_t2 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x8C, buffer, 1);
+	err |= read_dev(bme680, 0x8C, buffer, 1);
 	bme680->cal.par_t3 = buffer[0];
 
 	// pressure
 	
-	err |= bme680->dev.read(0x8E, buffer, 2);
+	err |= read_dev(bme680, 0x8E, buffer, 2);
 	bme680->cal.par_p1 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x90, buffer, 2);
+	err |= read_dev(bme680, 0x90, buffer, 2);
 	bme680->cal.par_p2 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x92, buffer, 1);
+	err |= read_dev(bme680, 0x92, buffer, 1);
 	bme680->cal.par_p3 = buffer[0];
 
-	err |= bme680->dev.read(0x94, buffer, 2);
+	err |= read_dev(bme680, 0x94, buffer, 2);
 	bme680->cal.par_p4 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x96, buffer, 2);
+	err |= read_dev(bme680, 0x96, buffer, 2);
 	bme680->cal.par_p5 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x99, buffer, 1);
+	err |= read_dev(bme680, 0x99, buffer, 1);
 	bme680->cal.par_p6 = buffer[0];
 
-	err |= bme680->dev.read(0x98, buffer, 1); // strange order
+	err |= read_dev(bme680, 0x98, buffer, 1); // strange order
 	bme680->cal.par_p7 = buffer[0];
 
-	err |= bme680->dev.read(0x9C, buffer, 1);
+	err |= read_dev(bme680, 0x9C, buffer, 1);
 	bme680->cal.par_p8 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0x9E, buffer, 2);
+	err |= read_dev(bme680, 0x9E, buffer, 2);
 	bme680->cal.par_p9 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0xA0, buffer, 1);
+	err |= read_dev(bme680, 0xA0, buffer, 1);
 	bme680->cal.par_p10 = buffer[0];
 
 	// humidity
 	
-	err |= bme680->dev.read(0xE2, buffer, 2);
+	err |= read_dev(bme680, 0xE2, buffer, 2);
 	bme680->cal.par_h1 = (buffer[1] << 4) | (buffer[0] & 0xF);
 
-	err |= bme680->dev.read(0xE1, buffer, 2);
+	err |= read_dev(bme680, 0xE1, buffer, 2);
 	bme680->cal.par_h2 = (buffer[0] << 4) | ((buffer[1] >> 4) & 0xF);
 
-	err |= bme680->dev.read(0xE4, buffer, 1);
+	err |= read_dev(bme680, 0xE4, buffer, 1);
 	bme680->cal.par_h3 = buffer[0];
 
-	err |= bme680->dev.read(0xE5, buffer, 1);
+	err |= read_dev(bme680, 0xE5, buffer, 1);
 	bme680->cal.par_h4 = buffer[0];
 
-	err |= bme680->dev.read(0xE6, buffer, 1);
+	err |= read_dev(bme680, 0xE6, buffer, 1);
 	bme680->cal.par_h5 = buffer[0];
 
-	err |= bme680->dev.read(0xE7, buffer, 1);
+	err |= read_dev(bme680, 0xE7, buffer, 1);
 	bme680->cal.par_h6 = buffer[0];
 
-	err |= bme680->dev.read(0xE8, buffer, 1);
+	err |= read_dev(bme680, 0xE8, buffer, 1);
 	bme680->cal.par_h7 = buffer[0];
 
 	// gas
 	
-	err |= bme680->dev.read(0xED, buffer, 1);
+	err |= read_dev(bme680, 0xED, buffer, 1);
 	bme680->cal.par_g1 = buffer[0];
 
-	err |= bme680->dev.read(0xEB, buffer, 2);
+	err |= read_dev(bme680, 0xEB, buffer, 2);
 	bme680->cal.par_g2 = (buffer[1] << 8) | buffer[0];
 
-	err |= bme680->dev.read(0xEE, buffer, 1);
+	err |= read_dev(bme680, 0xEE, buffer, 1);
 	bme680->cal.par_g2 = buffer[0];
 
 	//  todo more
@@ -251,28 +435,30 @@ int bme680_calibrate(bme680_t *bme680) {
 	return err;
 }
 
-/*
-void print_calibration  ( bme680_calibration *cal ) {
-	printf("par_t1: %d\n", cal->par_t1);
-	printf("par_t2: %d\n", cal->par_t2);
-	printf("par_t3: %d\n", cal->par_t3);
-	printf("par_p1: %d\n", cal->par_p1);
-	printf("par_p2: %d\n", cal->par_p2);
-	printf("par_p3: %d\n", cal->par_p3);
-	printf("par_p4: %d\n", cal->par_p4);
-	printf("par_p5: %d\n", cal->par_p5);
-	printf("par_p6: %d\n", cal->par_p6);
-	printf("par_p7: %d\n", cal->par_p7);
-	printf("par_p8: %d\n", cal->par_p8);
-	printf("par_p9: %d\n", cal->par_p9);
-	printf("par_p10: %d\n", cal->par_p10);
-	printf("par_h1: %d\n", cal->par_h1);
-	printf("par_h2: %d\n", cal->par_h2);
-	printf("par_h3: %d\n", cal->par_h3);
-	printf("par_h4: %d\n", cal->par_h4);
-	printf("par_h5: %d\n", cal->par_h5);
-	printf("par_h6: %d\n", cal->par_h6);
-	printf("par_h7: %d\n", cal->par_h7);
-} */
+
+/********************************************************************/
+
+void bme680_print_calibration (bme680_t *bme680) {
+	printf("par_t1: %d\n", bme680->cal.par_t1);
+	printf("par_t2: %d\n", bme680->cal.par_t2);
+	printf("par_t3: %d\n", bme680->cal.par_t3);
+	printf("par_p1: %d\n", bme680->cal.par_p1);
+	printf("par_p2: %d\n", bme680->cal.par_p2);
+	printf("par_p3: %d\n", bme680->cal.par_p3);
+	printf("par_p4: %d\n", bme680->cal.par_p4);
+	printf("par_p5: %d\n", bme680->cal.par_p5);
+	printf("par_p6: %d\n", bme680->cal.par_p6);
+	printf("par_p7: %d\n", bme680->cal.par_p7);
+	printf("par_p8: %d\n", bme680->cal.par_p8);
+	printf("par_p9: %d\n", bme680->cal.par_p9);
+	printf("par_p10: %d\n", bme680->cal.par_p10);
+	printf("par_h1: %d\n", bme680->cal.par_h1);
+	printf("par_h2: %d\n", bme680->cal.par_h2);
+	printf("par_h3: %d\n", bme680->cal.par_h3);
+	printf("par_h4: %d\n", bme680->cal.par_h4);
+	printf("par_h5: %d\n", bme680->cal.par_h5);
+	printf("par_h6: %d\n", bme680->cal.par_h6);
+	printf("par_h7: %d\n", bme680->cal.par_h7);
+}
 
 
