@@ -4,7 +4,11 @@
 #include <stdint.h>
 
 #define BME680_IS_SPI(m)      ((m & 1) == 1)
-#define BME680_IS_FLOAT(m)   (((m >> 1) & 1) == 0)
+#define BME680_IS_FLOAT(m)    (((m >> 1) & 1) == 0)
+#define BME680_GAS_ENABLED(m) (((m >> 2) & 1) == 1) 
+
+#define BME680_IDAC(c) (c << 1)
+#define BME680_GAS_WAIT(val, scal) ((uint8_t)(((scal & 0b11) << 6) | (val & 0b111111)))
 
 /* connection modes */
 #define BME680_SPI   1
@@ -13,6 +17,9 @@
 /* calculation modes; int or float calc */
 #define BME680_MODE_INT   2
 #define BME680_MODE_FLOAT 0
+
+/* to enable gas conversion OR this into mode byte */
+#define BME680_ENABLE_GAS 4
 
 /* config values */
 #define BME680_OVERSAMPLE_X1  0b001
@@ -30,6 +37,12 @@
 #define BME680_IIR_COEFF_31  0b101
 #define BME680_IIR_COEFF_63  0b110
 #define BME680_IIR_COEFF_127 0b111
+
+/* gas related values */
+#define BME680_GAS_WAIT_X1  0b00
+#define BME680_GAS_WAIT_X4  0b01
+#define BME680_GAS_WAIT_X16 0b10
+#define BME680_GAS_WAIT_X64 0b11
 
 
 /* user supplied spi/i2c functions */
@@ -67,22 +80,25 @@ struct bme680_cal {
 	uint8_t  par_h6;
 	int8_t   par_h7;
 
-	/* gas maybe */
+	/* heater + gas */
 	uint16_t par_g1;
 	uint16_t par_g2;
 	uint16_t par_g3;
 	uint16_t range_switching_error;
+	uint8_t  res_heat_range;
+	int8_t   res_heat_val;
 };
-
 
 struct bme680_config {
 	uint8_t osrs_t;
 	uint8_t osrs_p;
 	uint8_t osrs_h;
 	uint8_t filter;
-	uint8_t heater_setpoint[10];
-	uint8_t heater_exposure_ms[10];
-	uint8_t heater_exposure_scalar[10];
+	uint8_t setpoint;
+	uint8_t idac_heat[10];
+	uint8_t res_heat[10];
+	uint8_t gas_wait[10];
+	uint8_t meas; /* required because you can't read back ctrl regs */
 };
 
 struct bme680_comp_float {
@@ -90,6 +106,7 @@ struct bme680_comp_float {
 	double temp;
 	double press;
 	double hum;
+	double gas_res;
 };
 
 struct bme680_comp_int {
@@ -97,13 +114,16 @@ struct bme680_comp_int {
 	int32_t temp;
 	int32_t press;
 	int32_t hum;
+	int32_t gas_res;
 };
 
 struct bme680_adc {
 	uint32_t temp;
 	uint32_t press;
 	uint32_t hum;
-	uint16_t gas;
+	uint32_t gas;
+	uint32_t gas_range;
+
 };
 
 struct bme680 {
@@ -124,10 +144,12 @@ int bme680_init(bme680_t *bme680, uint8_t mode);
 int bme680_deinit(bme680_t *bme680);
 int bme680_reset(bme680_t *bme680);
 int bme680_calibrate(bme680_t *bme680);
+int bme680_configure(bme680_t *bme680);
 int bme680_start(bme680_t *bme680);
 int bme680_poll(bme680_t *bme680);
 int bme680_read(bme680_t *bme680);
 
+uint8_t bme680_calc_target(bme680_t *bme680, double target, double ambient);
 
 void bme680_print_calibration(bme680_t *bme680);
 
