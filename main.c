@@ -6,18 +6,8 @@
 #include "bme680.h"
 #include "i2c.h"
 
-#define DEVICE "/dev/i2c-1"
-#define ADDRESS 0x77
-
-#define AMBIENT_TEMP_GUESS 25.0
-#define HEATER_TARGET 320.0
-
-int i2c_dev_fd;
-
-int linux_i2c_init   (void);
-int linux_i2c_read   (uint8_t reg, uint8_t *dst, uint32_t size);
-int linux_i2c_write  (uint8_t reg, uint8_t value);
-int linux_i2c_deinit (void);
+#define AMBIENT_TEMP_GUESS 19.0
+#define HEATER_TARGET 300.0
 
 int main(void) {
 	
@@ -26,10 +16,10 @@ int main(void) {
 	int i;
 
 	/* 1. Assign functions for interacting with the device */
-	bme680.dev.init   = linux_i2c_init;	
-	bme680.dev.read   = linux_i2c_read;
-	bme680.dev.write  = linux_i2c_write;
-	bme680.dev.deinit = linux_i2c_deinit;
+	bme680.dev.init   = i2c_init;	
+	bme680.dev.read   = i2c_read;
+	bme680.dev.write  = i2c_write;
+	bme680.dev.deinit = i2c_deinit;
 
 	/* 2. set the device mode */
 	mode = BME680_MODE_FLOAT | BME680_I2C | BME680_ENABLE_GAS;
@@ -73,14 +63,15 @@ int main(void) {
 
 		/* initial heating current for the setpoint. Could be useful in cold places.. */
 		/* 7-bit word. Each step/lsb is equiv. to 1/8 mA; so max 16 mA */
+		/* a value of 20 would be equal to 2.5 mA */
 		/* this s.p. field is allowed to be left as 0 if no preload is required. */
-		bme680.cfg.idac_heat[i] = BME680_IDAC(20);
+		bme680.cfg.idac_heat[i] = BME680_IDAC(0);
 
 		/* define the time between the start of heating and start of resistance sensing in this s.p.*/
 		/* Bosch datasheet suggests ~30 - 40ms is usually all that is required to get up to temp. */
-		/* 60 * 16 = 960 ms wait before sampling resistance starts. */
+		/* 50 * X4 = 200 ms wait before sampling resistance starts. */
 		/* the first value is 6-bit (0...64) with 1 ms step size. */
-		bme680.cfg.gas_wait[i] = BME680_GAS_WAIT(60, BME680_GAS_WAIT_X16);
+		bme680.cfg.gas_wait[i] = BME680_GAS_WAIT(50, BME680_GAS_WAIT_X4);
 	}
 
 	/* The BME680 does not cycle between setpoints. They have to be manually set. */
@@ -143,61 +134,3 @@ int main(void) {
 	return 0;
 }
 
-
-// STUBS
-
-int linux_i2c_init (void) {
-
-	int ret;
-	puts("i2c_init");
-
-	if ((ret = i2c_init(DEVICE, ADDRESS)) > 0) {
-		i2c_dev_fd = ret;
-		return 0;
-	}
-
-	return 1;
-}
-
-int linux_i2c_read (uint8_t reg, uint8_t *dst, uint32_t size) {
-
-	uint32_t i;
-
-	printf("i2c_read: %.2X (%d) [", reg, size);
-
-	if (i2c_read_reg(i2c_dev_fd, reg, dst, size) != I2C_OK) {
-		return 1;
-	}
-
-	for(i=0; i<size; i++) {
-
-		printf("%.2X", dst[i]);
-
-		if (i < (size - 1)) {
-			printf(", ");
-		}
-	}
-
-	printf("]\n");
-	
-	return 0;
-}
-
-int linux_i2c_write (uint8_t reg, uint8_t value) {
-
-	printf("i2c_write: %.2X [%.2X]\n", reg, value);
-
-	if (i2c_write_reg(i2c_dev_fd, reg, value) != I2C_OK) {
-		return 1;
-	}
-
-	return 0;
-}
-
-int linux_i2c_deinit (void) {
-
-	puts("i2c_deinit");
-	close(i2c_dev_fd);
-
-	return 0;
-}

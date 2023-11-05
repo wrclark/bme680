@@ -9,26 +9,30 @@
 
 #include "i2c.h"
 
-int i2c_init(const char *dev, uint8_t addr) {
-	int fd = -1;
+#define I2C_DEVICE "/dev/i2c-1"
+#define I2C_BME680_ADDRESS 0x77
 
-	fd = open(dev, O_RDWR);
+static int fd;
+
+int i2c_init(void) {
+
+	fd = open(I2C_DEVICE, O_RDWR);
 	if (fd < 0) {
-		fprintf(stderr, "could not open device: %s\n", dev);
-		return -1;
+		fprintf(stderr, "could not open device: %s\n", I2C_DEVICE);
+		return I2C_ERR;
 	}
 
-	if (ioctl(fd, I2C_SLAVE, addr) < 0) {
+	if (ioctl(fd, I2C_SLAVE, I2C_BME680_ADDRESS) < 0) {
 		fprintf(stderr, "failed to acquire bus/talk to slave\n");
 		close(fd);
-		return -1;
+		return I2C_ERR;
 	}
 
-	return fd;
+	return I2C_OK;
 }
 
 
-int i2c_read_reg(int fd, uint8_t reg, uint8_t *dst, uint32_t size) {
+int i2c_read(uint8_t reg, uint8_t *dst, uint32_t size) {
 
 	uint8_t cmd[2] = {reg, 0x00};
 	write(fd, cmd, 2);
@@ -42,7 +46,7 @@ int i2c_read_reg(int fd, uint8_t reg, uint8_t *dst, uint32_t size) {
 }
 
 
-int i2c_write_reg(int fd, uint8_t reg, uint8_t value) {
+int i2c_write(uint8_t reg, uint8_t value) {
 	
 	uint8_t cmd[2] = {reg, value};
 	
@@ -54,3 +58,10 @@ int i2c_write_reg(int fd, uint8_t reg, uint8_t value) {
 	return I2C_OK;
 }
 
+int i2c_deinit(void) {
+	if (fd) {
+		close(fd);
+	}
+
+	return I2C_OK;
+}
