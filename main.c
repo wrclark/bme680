@@ -96,7 +96,7 @@ int main(void) {
 
 	/* 8. Start forced measurement. After it finishes, it should remember the previous config. */
 	if (bme680_start(&bme680) != 0) {
-		fprintf(stderr, "bme680_configure()\n");
+		fprintf(stderr, "bme680_start()\n");
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
