@@ -19,13 +19,8 @@ static int set_spi_page(bme680_t *bme680, uint8_t no);
 /********************************************************************/
 static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t value) {
 
-	uint8_t req_page = REG_SPI_PAGE(reg);
-
 	if (BME680_IS_SPI(bme680->mode)) {
-		if (req_page != bme680->spi_page) {
-			set_spi_page(bme680, req_page);
-			bme680->spi_page = req_page;
-		}
+		check_spi_page(bme680, reg);
 		reg &= 0x7F;
 	}
 
