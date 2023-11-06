@@ -76,9 +76,9 @@ int main(void) {
 
 		/* define the time between the start of heating and start of resistance sensing in this s.p.*/
 		/* Bosch datasheet suggests ~30 - 40ms is usually all that is required to get up to temp. */
-		/* 50 * X4 = 200 ms wait before sampling resistance starts. */
+		/* 25 * X4 = 100 ms wait before sampling resistance starts. */
 		/* the first value is 6-bit (0...64) with 1 ms step size. */
-		bme680.cfg.gas_wait[i] = BME680_GAS_WAIT(50, BME680_GAS_WAIT_X4);
+		bme680.cfg.gas_wait[i] = BME680_GAS_WAIT(25, BME680_GAS_WAIT_X4);
 	}
 
 	/* The BME680 does not cycle between setpoints. They have to be manually set. */
@@ -138,6 +138,12 @@ int main(void) {
 			printf("gas resistance: %d Ohm\n", bme680.icomp.gas_res);
 			printf("== for heater target=%.1f and ambient temp=%.1f (degC)\n", HEATER_TARGET, AMBIENT_TEMP_GUESS);
 		}
+	}
+
+	/* print out heat stability and gas valid flags. should both be 1 !! */
+	if (BME680_GAS_ENABLED(bme680.mode)) {
+		printf("=== gas_valid_r: %d\n", bme680.gas_valid);
+		printf("=== heat_stab_r: %d\n", bme680.heat_stab);
 	}
 
 	bme680_deinit(&bme680);

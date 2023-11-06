@@ -135,6 +135,8 @@ struct bme680 {
 	struct bme680_adc adc;
 	uint8_t mode;
 	uint8_t spi_page; 
+	uint8_t gas_valid;
+	uint8_t heat_stab;
 };
 
 typedef struct bme680 bme680_t;

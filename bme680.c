@@ -83,6 +83,8 @@ int bme680_init(bme680_t *bme680, uint8_t mode) {
 
 	bme680->mode = mode;
 	bme680->spi_page = 0; 
+	bme680->gas_valid = 0;
+	bme680->heat_stab = 0;
 
 	if (bme680->dev.init() != 0) {
 		return 1;
@@ -177,10 +179,6 @@ int bme680_configure(bme680_t *bme680) {
 	err |= write_dev(bme680, REG_CTRL_GAS_1, ctrl_gas1);
 	err |= write_dev(bme680, REG_CTRL_GAS_0, ctrl_gas0);
 
-	// TODO: check gas_valid_r and heat_stab_r in 0x2B
-
-
-
 SKIP_GAS:
 	return err;
 }
@@ -249,12 +247,21 @@ int bme680_read(bme680_t *bme680) {
 	}
 
 	/* read gas adc ?*/
+	// TODO: read 2 bytes once
 	if (BME680_GAS_ENABLED(bme680->mode)) {
 		err |= read_dev(bme680, 0x2A, buffer, 2);
 		bme680->adc.gas = (buffer[0] << 2) | (buffer[1] >> 6);
 
 		err |= read_dev(bme680, 0x2B, buffer, 1);
 		bme680->adc.gas_range = buffer[0] & 0xF;
+
+		/* check gas validity status (if one actually took place ??? ) */
+		err |= read_dev(bme680, 0x2B, buffer, 1);
+		bme680->gas_valid = (buffer[0] >> 5) & 1 ;
+
+		/* check heater stability. if it managed to get to temp within given time + preload current */
+		err |= read_dev(bme680, 0x2B, buffer, 1);
+		bme680->heat_stab = (buffer[0] >> 4) & 1;
 	}
 
 	/* read/convert in order ..*/
