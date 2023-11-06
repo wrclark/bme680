@@ -74,7 +74,7 @@ int spi_init(void) {
 	}
 
 
-	puts("spi_init");
+//	puts("spi_init");
 	return SPI_OK;
 }
 
@@ -129,7 +129,7 @@ int spi_write(uint8_t reg, uint8_t value) {
 }
 
 int spi_deinit(void) {
-	puts("spi_deinit");
+//	puts("spi_deinit");
 	if (fd) {
 		close(fd);
 	}
