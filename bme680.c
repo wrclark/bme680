@@ -12,6 +12,7 @@ static void calc_press_comp(bme680_t *bme680);
 static void calc_hum_comp(bme680_t *bme680);
 static void calc_gas_res(bme680_t *bme680);
 
+static void check_spi_page(bme680_t *bme680, uint8_t reg);
 static int set_spi_page(bme680_t *bme680, uint8_t no);
 
 
@@ -31,32 +32,33 @@ static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t value) {
 	return bme680->dev.write(reg, value);
 }
 
-
 /********************************************************************/
 static int read_dev(bme680_t *bme680, uint8_t reg, uint8_t *dst, uint32_t size) {
 
-	uint8_t req_page = REG_SPI_PAGE(reg);
-
 	if (BME680_IS_SPI(bme680->mode)) {
-
-		if (req_page != bme680->spi_page) {
-			set_spi_page(bme680, req_page);
-			bme680->spi_page = req_page;
-		}
+		check_spi_page(bme680, reg);
 		reg |= 0x80; 
 	}
 
 	return bme680->dev.read(reg, dst, size);
 }
 
+/********************************************************************/
+/* change spi page if necessary */
+static void check_spi_page(bme680_t *bme680, uint8_t reg) {
+	uint8_t required_page = REG_SPI_PAGE(reg);
+
+	if (required_page != bme680->spi_page) {
+		set_spi_page(bme680, required_page);
+		bme680->spi_page = required_page;
+	}
+}
 
 /********************************************************************/
 static int set_spi_page(bme680_t *bme680, uint8_t page_no) {
 	uint8_t status_reg = page_no << 4;
-//	printf("page=%d (%s)\n", page_no, REG_SPI_PAGE_MAP(page_no));
 	return bme680->dev.write(REG_STATUS, status_reg);
 }
-
 
 /********************************************************************/
 static int read_id(bme680_t *bme680, uint8_t *id) {
@@ -183,6 +185,7 @@ SKIP_GAS:
 	return err;
 }
 
+/********************************************************************/
 /* To start forced mode, you just have to set the lsb=1 of REG_CTRL_MEAS */
 int bme680_start(bme680_t *bme680) {
 
@@ -193,9 +196,8 @@ int bme680_start(bme680_t *bme680) {
 	return err;
 }
 
-
 /********************************************************************/
-/* blocks until the device claims all scheduled conversions are done. 
+/* blocks until the device all scheduled conversions are done. 
  * don't call out of order.
  */
 int bme680_poll(bme680_t *bme680) {
@@ -209,8 +211,8 @@ int bme680_poll(bme680_t *bme680) {
 	do {
 		usleep(5000); /* 5 ms */
 		err |= read_dev(bme680, REG_EAS_STATUS, &meas_status, 1);
-		gas_measuring = ((meas_status >> 6) & 1) == 1;
-		any_measuring = ((meas_status >> 5) & 1) == 1;
+		gas_measuring = (meas_status >> 6) & 1;
+		any_measuring = (meas_status >> 5) & 1;
 
 	} while ((gas_measuring || any_measuring) && !err);
 
@@ -246,22 +248,20 @@ int bme680_read(bme680_t *bme680) {
 		bme680->adc.press >>= (bme680->cfg.osrs_p - 1);
 	}
 
-	/* read gas adc ?*/
-	// TODO: read 2 bytes once
+	/* read gas adc values and check error bits */
 	if (BME680_GAS_ENABLED(bme680->mode)) {
-		err |= read_dev(bme680, 0x2A, buffer, 2);
-		bme680->adc.gas = (buffer[0] << 2) | (buffer[1] >> 6);
 
-		err |= read_dev(bme680, 0x2B, buffer, 1);
-		bme680->adc.gas_range = buffer[0] & 0xF;
+		err |= read_dev(bme680, 0x2A, buffer, 2);
+		
+		/* read gas-related adc values */
+		bme680->adc.gas = (buffer[0] << 2) | (buffer[1] >> 6);
+		bme680->adc.gas_range = buffer[1] & 0xF;
 
 		/* check gas validity status (if one actually took place ??? ) */
-		err |= read_dev(bme680, 0x2B, buffer, 1);
-		bme680->gas_valid = (buffer[0] >> 5) & 1 ;
+		bme680->gas_valid = (buffer[1] >> 5) & 1;
 
 		/* check heater stability. if it managed to get to temp within given time + preload current */
-		err |= read_dev(bme680, 0x2B, buffer, 1);
-		bme680->heat_stab = (buffer[0] >> 4) & 1;
+		bme680->heat_stab = (buffer[1] >> 4) & 1;
 	}
 
 	/* read/convert in order ..*/
@@ -451,6 +451,7 @@ static void calc_hum_comp (bme680_t *bme680) {
 }
 
 /********************************************************************/
+// TODO: read one big contiguous block
 int bme680_calibrate(bme680_t *bme680) {
 
 	uint8_t buffer[3] = {0, 0 ,0};

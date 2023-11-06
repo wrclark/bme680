@@ -3,7 +3,6 @@
 
 /* SPI page number 0 => 0x00 to 0x7F */
 /* SPI page number 1 => 0x80 to 0xFF */
-/* SPECIAL CASE: 0x73 is reachable in both page 1 and 0 !!!!*/
 #define REG_SPI_PAGE(v) ((v > 0x7F) ? 0 : 1)
 #define REG_SPI_PAGE_MAP(v) (v == 0 ? "LOW" : "HIGH")
 

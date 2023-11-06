@@ -42,7 +42,6 @@ int spi_init(void) {
 		return SPI_ERR;
 	}
 
-
 	if (ioctl(fd, SPI_IOC_RD_MODE, &mode) == -1) {
 		fprintf(stderr, "SPI_IOC_RD_MODE\n");
 		return SPI_ERR;

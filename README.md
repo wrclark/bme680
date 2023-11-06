@@ -43,12 +43,14 @@ range_switching_error: 19
 res_heat_range: 1
 res_heat_val: 46
 float mode
-tfine: 104478.758986
-temp: 20.406008 degC
-press: 99649.423644 Pa
-humidity: 65.368724 % RH
-gas resistance: 10989.279979 Ohm
+tfine: 104906.162500
+temp: 20.489485 degC
+press: 100089.609193 Pa
+humidity: 64.456540 % RH
+gas resistance: 12100.310308 Ohm
 == for heater target=300.0 and ambient temp=19.0 (degC)
+=== gas_valid_r: 1
+=== heat_stab_r: 1
 ```
 
 ## i2c demo
@@ -80,13 +82,14 @@ range_switching_error: 19
 res_heat_range: 1
 res_heat_val: 39
 float mode
-tfine: 102706.944886
-temp: 20.059950 degC
-press: 99783.521673 Pa
-humidity: 63.931961 % RH
-gas resistance: 12028.902897 Ohm
+tfine: 97289.819111
+temp: 19.001918 degC
+press: 100226.479673 Pa
+humidity: 67.022216 % RH
+gas resistance: 14702.868852 Ohm
 == for heater target=300.0 and ambient temp=19.0 (degC)
+=== gas_valid_r: 1
+=== heat_stab_r: 1
 ```
 
-
-Note: Two different BME680 devices, one on each type of bus. Low air pressure due to storm not bad sensor.
+Note: Two different BME680 devices, one on each type of bus. Perhaps they'd read closer to eachother following a burn-in or something.
