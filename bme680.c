@@ -7,70 +7,93 @@
 #include "registers.h"
 
 
-static int write_spi_page(bme680_t *bme680, uint8_t page_value);
 static void calc_temp_comp(bme680_t *bme680);
 static void calc_press_comp(bme680_t *bme680);
 static void calc_hum_comp(bme680_t *bme680);
 static void calc_gas_res(bme680_t *bme680);
 
+static int set_spi_page(bme680_t *bme680, uint8_t no);
+
+
 /********************************************************************/
 static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t value) {
 
-	uint8_t tmp;
+	uint8_t req_page = REG_SPI_PAGE(reg);
 
 	if (BME680_IS_SPI(bme680->mode)) {
-		if ((tmp = REG_SPI_PAGE(reg)) != bme680->spi_page) {
-			(void) write_spi_page(bme680, tmp);
-			bme680->spi_page = tmp;
+		if (req_page != bme680->spi_page) {
+			set_spi_page(bme680, req_page);
+			bme680->spi_page = req_page;
 		}
+		reg &= 0x7F;
 	}
 
 	return bme680->dev.write(reg, value);
 }
 
-static int write_spi_page(bme680_t *bme680, uint8_t page_value) {
-	uint8_t status_byte = (!!page_value) << 4; 
-	return bme680->dev.write(REG_STATUS, status_byte);
-}
 
 /********************************************************************/
 static int read_dev(bme680_t *bme680, uint8_t reg, uint8_t *dst, uint32_t size) {
 
-	uint8_t tmp;
+	uint8_t req_page = REG_SPI_PAGE(reg);
 
-	/* Might have to change the SPI page for this reg if using SPI */
 	if (BME680_IS_SPI(bme680->mode)) {
-		if ((tmp = REG_SPI_PAGE(reg)) != bme680->spi_page) {
-			(void) write_spi_page(bme680, tmp);
-			bme680->spi_page = tmp;
+
+		if (req_page != bme680->spi_page) {
+			set_spi_page(bme680, req_page);
+			bme680->spi_page = req_page;
 		}
+		reg |= 0x80; 
 	}
 
-	/* some registers, like id and reset, have diff addr in i2c/spi */
 	return bme680->dev.read(reg, dst, size);
+}
+
+
+/********************************************************************/
+static int set_spi_page(bme680_t *bme680, uint8_t page_no) {
+	uint8_t status_reg = page_no << 4;
+//	printf("page=%d (%s)\n", page_no, REG_SPI_PAGE_MAP(page_no));
+	return bme680->dev.write(REG_STATUS, status_reg);
+}
+
+
+/********************************************************************/
+static int read_id(bme680_t *bme680, uint8_t *id) {
+
+	uint8_t id_reg;
+
+	/* force spi page 0. special case */
+	if (BME680_IS_SPI(bme680->mode)) {
+		set_spi_page(bme680, 0);
+		bme680->spi_page = 0;
+		id_reg = 0x50 | 0x80;
+	} else {
+		id_reg = REG_ID;
+	}
+
+	return bme680->dev.read(id_reg, id, 1);
 }
 
 /********************************************************************/
 int bme680_init(bme680_t *bme680, uint8_t mode) {
 
-	uint8_t car;
-	uint8_t id_reg;
+	uint8_t id;
 	int i;
 
 	bme680->mode = mode;
+	bme680->spi_page = 0; 
 
 	if (bme680->dev.init() != 0) {
 		return 1;
 	}
 
-	/* id reg depends on spi or i2c */
-	id_reg = BME680_IS_SPI(mode) ? 0x50 : REG_ID;
 
-	if (read_dev(bme680, id_reg, &car, 1) != 0) {
+	if (read_id(bme680, &id) != 0) {
 		return 1;
 	}
 
-	if (car != 0x61) {
+	if (id != 0x61) {
 		return 1;
 	}
 
@@ -95,12 +118,22 @@ int bme680_deinit(bme680_t *bme680) {
 
 /********************************************************************/
 int bme680_reset(bme680_t *bme680) {
-	uint8_t reg = BME680_IS_SPI(bme680->mode) ? 0x60 : REG_RESET;
 	uint8_t magic = 0xB6;
+	uint8_t reg;
 	int ret;
-	
-	ret = write_dev(bme680, reg, magic); 
-	usleep(2000); /* sleep for 5 ms */
+
+	/* force page 0. special case */
+	if (BME680_IS_SPI(bme680->mode)) {
+		set_spi_page(bme680, 0);
+		bme680->spi_page = 0;
+		reg = 0x60 | 0x80;
+	} else {
+		reg = REG_RESET;
+	}
+
+	ret = bme680->dev.write(reg, magic);
+	usleep(2000); /* sleep for 2 ms */
+
 	return ret;
 }
 
@@ -133,17 +166,16 @@ int bme680_configure(bme680_t *bme680) {
 	/* write out all 10 setpoints */
 	/* those not explicitly set are defaulted to 0 (which has no effect) */
 	for(i=0; i<10; i++) {
-		err |= bme680->dev.write(0x6D - i, bme680->cfg.gas_wait[9 - i]);	
-		err |= bme680->dev.write(0x63 - i, bme680->cfg.res_heat[9 - i]);	
-		err |= bme680->dev.write(0x59 - i, bme680->cfg.idac_heat[9 - i]);	
+		err |= write_dev(bme680, 0x6D - i, bme680->cfg.gas_wait[9 - i]);	
+		err |= write_dev(bme680, 0x63 - i, bme680->cfg.res_heat[9 - i]);	
+		err |= write_dev(bme680, 0x59 - i, bme680->cfg.idac_heat[9 - i]);	
 	}
 
-			            /* `run_gas' bit */
 	ctrl_gas1 = bme680->cfg.setpoint | (1 << 4);
 	ctrl_gas0 = 0; /* := (1 << 3) to turn off current going to heater */
 
-	err |= bme680->dev.write(REG_CTRL_GAS_1, ctrl_gas1);
-	err |= bme680->dev.write(REG_CTRL_GAS_0, ctrl_gas0);
+	err |= write_dev(bme680, REG_CTRL_GAS_1, ctrl_gas1);
+	err |= write_dev(bme680, REG_CTRL_GAS_0, ctrl_gas0);
 
 	// TODO: check gas_valid_r and heat_stab_r in 0x2B
 
@@ -171,7 +203,7 @@ int bme680_start(bme680_t *bme680) {
 int bme680_poll(bme680_t *bme680) {
 
 	uint8_t meas_status = 0;
-	uint8_t gas_measuring = 0; // is only 1 during gas measurement
+	uint8_t gas_measuring = 0;
 	uint8_t any_measuring = 0;
 	int err = 0;
 
@@ -203,6 +235,7 @@ int bme680_read(bme680_t *bme680) {
 
 	err |= read_dev(bme680, 0x25, buffer, 2);
 	bme680->adc.hum = (buffer[0] << 8) | buffer[1];
+
 
 	/* adc readings are only 20-bit when the IIR filter is enabled.
 	 * otherwise, it depends on the oversample settings.

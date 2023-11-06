@@ -5,6 +5,7 @@
 
 #include "bme680.h"
 #include "i2c.h"
+#include "spi.h"
 
 #define AMBIENT_TEMP_GUESS 19.0
 #define HEATER_TARGET 300.0
@@ -16,14 +17,20 @@ int main(void) {
 	int i;
 
 	/* 1. Assign functions for interacting with the device */
-	bme680.dev.init   = i2c_init;	
-	bme680.dev.read   = i2c_read;
-	bme680.dev.write  = i2c_write;
-	bme680.dev.deinit = i2c_deinit;
+
+//	bme680.dev.init   = i2c_init;	
+//	bme680.dev.read   = i2c_read;
+//	bme680.dev.write  = i2c_write;
+//	bme680.dev.deinit = i2c_deinit;
+
+	bme680.dev.init   = spi_init;
+	bme680.dev.read   = spi_read;
+	bme680.dev.write  = spi_write;
+	bme680.dev.deinit = spi_deinit;
 
 	/* 2. set the device mode */
-	mode = BME680_MODE_FLOAT | BME680_I2C | BME680_ENABLE_GAS;
-	/*     BME680_MODE_INT   | BME680_SPI; */
+	mode = BME680_MODE_FLOAT | BME680_SPI | BME680_ENABLE_GAS;
+	/*     BME680_MODE_INT   | BME680_I2C; */
 
 
 	/* 3. initialise device, and check its id */
@@ -65,7 +72,7 @@ int main(void) {
 		/* 7-bit word. Each step/lsb is equiv. to 1/8 mA; so max 16 mA */
 		/* a value of 20 would be equal to 2.5 mA */
 		/* this s.p. field is allowed to be left as 0 if no preload is required. */
-		bme680.cfg.idac_heat[i] = BME680_IDAC(0);
+		bme680.cfg.idac_heat[i] = BME680_IDAC(100);
 
 		/* define the time between the start of heating and start of resistance sensing in this s.p.*/
 		/* Bosch datasheet suggests ~30 - 40ms is usually all that is required to get up to temp. */
@@ -85,12 +92,14 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 
+
 	/* 8. Start forced measurement. After it finishes, it should remember the previous config. */
 	if (bme680_start(&bme680) != 0) {
 		fprintf(stderr, "bme680_start()\n");
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
+
 
 	/* 9. poll the meas_status register until all scheduled conversions are done */
 	if (bme680_poll(&bme680) != 0) {
@@ -99,12 +108,14 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 
+
 	/* 10. read the ADC's and perform a conversion */
 	if (bme680_read(&bme680) != 0) {
 		fprintf(stderr, "bme680_read()\n");
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
+
 
 	/* 11. use data ! */
 	if (BME680_IS_FLOAT(bme680.mode)) {
