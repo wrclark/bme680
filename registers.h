@@ -63,7 +63,7 @@
 #define REG_PRESS_LSB   0x20
 #define REG_PRESS_MSB   0x1F
 
-#define REG_EAS_STATUS  0x1D
+#define REG_MEAS_STATUS 0x1D
 
 
 

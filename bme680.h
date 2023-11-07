@@ -94,7 +94,6 @@ struct bme680_config {
 	uint8_t osrs_p;
 	uint8_t osrs_h;
 	uint8_t filter;
-	uint8_t setpoint;
 	uint8_t idac_heat[10];
 	uint8_t res_heat[10];
 	uint8_t gas_wait[10];
@@ -134,6 +133,7 @@ struct bme680 {
 	struct bme680_config cfg;
 	struct bme680_adc adc;
 	uint8_t mode;
+	uint8_t setpoint;
 	uint8_t spi_page; 
 	uint8_t gas_valid;
 	uint8_t heat_stab;
@@ -150,6 +150,8 @@ int bme680_configure(bme680_t *bme680);
 int bme680_start(bme680_t *bme680);
 int bme680_poll(bme680_t *bme680);
 int bme680_read(bme680_t *bme680);
+int bme680_write_setpoint_index(bme680_t *bme680);
+int bme680_read_setpoint_index(bme680_t *bme680, uint8_t *index);
 
 uint8_t bme680_calc_target(bme680_t *bme680, double target, double ambient);
 

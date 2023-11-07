@@ -33,13 +33,13 @@ int main(void) {
 	/*     BME680_MODE_INT   | BME680_I2C; */
 
 
-	/* 3. initialise device, and check its id */
+	/* 3. initialise dev func's, and check device id */
 	if (bme680_init(&bme680, mode) != 0) {
 		fprintf(stderr, "bme680_init()\n");
 		exit(EXIT_FAILURE);
 	}
 
-	/* 4. reset */
+	/* 4. reset device */
 	bme680_reset(&bme680);
 
 	/* 5. read calibration parameters from the device and store in memory */
@@ -61,14 +61,14 @@ int main(void) {
 	/* configuring gas sensor. */
 	/* NB: mode |= BME680_ENABLE_GAS; */
 	/* there are 10 possible heater setpoints */
-	/* they can be though of as frames that define one single gas-resistance measurement */
-	/* they do not carry over or affect eachother in any way. */
+	/* they can be thought of as frames that define one single gas-resistance measurement */
+	/* they do not carry over or affect each other in any way. */
 	for(i=0; i<10; i++) {
 
 		/* calculate a resistance target, based on desired temp, and ambient temp */
 		bme680.cfg.res_heat[i] = bme680_calc_target(&bme680, HEATER_TARGET, AMBIENT_TEMP_GUESS);
 
-		/* initial heating current for the setpoint. Could be useful in cold places.. */
+		/* initial heating current for the setpoint. Could be useful in cold places or short gas_wait durations */
 		/* 7-bit word. Each step/lsb is equiv. to 1/8 mA; so max 16 mA */
 		/* a value of 20 would be equal to 2.5 mA */
 		/* this s.p. field is allowed to be left as 0 if no preload is required. */
@@ -76,14 +76,16 @@ int main(void) {
 
 		/* define the time between the start of heating and start of resistance sensing in this s.p.*/
 		/* Bosch datasheet suggests ~30 - 40ms is usually all that is required to get up to temp. */
+		/* ^ probably with a good idac_heat current but doesn't mention it. */
 		/* 25 * X4 = 100 ms wait before sampling resistance starts. */
-		/* the first value is 6-bit (0...64) with 1 ms step size. */
+		/* the first value is 6-bit (0...63) with 1 ms step size. */
 		bme680.cfg.gas_wait[i] = BME680_GAS_WAIT(25, BME680_GAS_WAIT_X4);
 	}
 
 	/* The BME680 does not cycle between setpoints. They have to be manually set. */
 	/* After each "run", the setpoint has to be changed. */
-	bme680.cfg.setpoint = 0; /* 0 thru 9 */
+	/* the func bme680_write_setpoint_index() will write this field to the dev, without having to reconfigure */
+	bme680.setpoint = 0; /* 0 thru 9 */
 
 	/* 7. write config to device */
 	if (bme680_configure(&bme680) != 0) {
@@ -92,22 +94,21 @@ int main(void) {
 		exit(EXIT_FAILURE);
 	}
 
-
-	/* 8. Start forced measurement. After it finishes, it should remember the previous config. */
+	/* 8. Start forced measurement*. After it finishes, it should remember the previous config. */
+	/*           * = bosch speak for one single T, P, H, GasRes measuring cycle. */
 	if (bme680_start(&bme680) != 0) {
 		fprintf(stderr, "bme680_start()\n");
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
 
-
 	/* 9. poll the meas_status register until all scheduled conversions are done */
+	/* this step can be skipped with SPI interrupt (3 wire SPI only. See 5.3.1.1 in datasheet; pg 29) */
 	if (bme680_poll(&bme680) != 0) {
 		fprintf(stderr, "bme680_poll()\n");
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
-
 
 	/* 10. read the ADC's and perform a conversion */
 	if (bme680_read(&bme680) != 0) {
@@ -115,7 +116,6 @@ int main(void) {
 		bme680_deinit(&bme680);
 		exit(EXIT_FAILURE);
 	}
-
 
 	/* 11. use data ! */
 	if (BME680_IS_FLOAT(bme680.mode)) {

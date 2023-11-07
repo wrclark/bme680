@@ -18,7 +18,6 @@ static int set_spi_page(bme680_t *bme680, uint8_t no);
 
 /********************************************************************/
 static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t value) {
-
 	if (BME680_IS_SPI(bme680->mode)) {
 		check_spi_page(bme680, reg);
 		reg &= 0x7F;
@@ -29,7 +28,6 @@ static int write_dev(bme680_t *bme680, uint8_t reg, uint8_t value) {
 
 /********************************************************************/
 static int read_dev(bme680_t *bme680, uint8_t reg, uint8_t *dst, uint32_t size) {
-
 	if (BME680_IS_SPI(bme680->mode)) {
 		check_spi_page(bme680, reg);
 		reg |= 0x80; 
@@ -57,7 +55,6 @@ static int set_spi_page(bme680_t *bme680, uint8_t page_no) {
 
 /********************************************************************/
 static int read_id(bme680_t *bme680, uint8_t *id) {
-
 	uint8_t id_reg;
 
 	/* force spi page 0. special case */
@@ -73,8 +70,27 @@ static int read_id(bme680_t *bme680, uint8_t *id) {
 }
 
 /********************************************************************/
-int bme680_init(bme680_t *bme680, uint8_t mode) {
+/* write local setpoint index to device, must not be running */
+int bme680_write_setpoint_index(bme680_t *bme680) {
+	/* setpoint (0 thru 9) bits 0,1,2,3 and run_gas bit 4 */
+	uint8_t ctrl_gas_1 = (bme680->setpoint & 0x0F) | (1 << 4);
+	return write_dev(bme680, REG_CTRL_GAS_1, ctrl_gas_1);
+}
 
+/********************************************************************/
+/* read the currently selected heater setpoint index on the device */
+int bme680_read_setpoint_index(bme680_t *bme680, uint8_t *index) {
+	uint8_t meas_status;
+	int err = 0;
+
+	err |= read_dev(bme680, REG_MEAS_STATUS, &meas_status, 1);
+	*index = (meas_status) & 0x0F;
+
+	return err;
+}
+
+/********************************************************************/
+int bme680_init(bme680_t *bme680, uint8_t mode) {
 	uint8_t id;
 	int i;
 
@@ -82,11 +98,11 @@ int bme680_init(bme680_t *bme680, uint8_t mode) {
 	bme680->spi_page = 0; 
 	bme680->gas_valid = 0;
 	bme680->heat_stab = 0;
+	bme680->setpoint = 0;
 
 	if (bme680->dev.init() != 0) {
 		return 1;
 	}
-
 
 	if (read_id(bme680, &id) != 0) {
 		return 1;
@@ -139,7 +155,6 @@ int bme680_reset(bme680_t *bme680) {
 /********************************************************************/
 /* configure device */
 int bme680_configure(bme680_t *bme680) {
-
 	uint8_t meas, hum, filter, ctrl_gas1, ctrl_gas0, err;
 	int i;
 	meas = hum = filter = err = 0;
@@ -170,7 +185,7 @@ int bme680_configure(bme680_t *bme680) {
 		err |= write_dev(bme680, 0x59 - i, bme680->cfg.idac_heat[9 - i]);	
 	}
 
-	ctrl_gas1 = bme680->cfg.setpoint | (1 << 4);
+	ctrl_gas1 = bme680->setpoint | (1 << 4);
 	ctrl_gas0 = 0; /* := (1 << 3) to turn off current going to heater */
 
 	err |= write_dev(bme680, REG_CTRL_GAS_1, ctrl_gas1);
@@ -183,7 +198,6 @@ SKIP_GAS:
 /********************************************************************/
 /* To start forced mode, you just have to set the lsb=1 of REG_CTRL_MEAS */
 int bme680_start(bme680_t *bme680) {
-
 	int err = 0;
 	uint8_t meas;
 	meas = bme680->cfg.meas | 1;
@@ -192,11 +206,8 @@ int bme680_start(bme680_t *bme680) {
 }
 
 /********************************************************************/
-/* blocks until the device all scheduled conversions are done. 
- * don't call out of order.
- */
+/* blocks until all scheduled conversions on the device are done. */
 int bme680_poll(bme680_t *bme680) {
-
 	uint8_t meas_status = 0;
 	uint8_t gas_measuring = 0;
 	uint8_t any_measuring = 0;
@@ -205,7 +216,7 @@ int bme680_poll(bme680_t *bme680) {
 
 	do {
 		usleep(5000); /* 5 ms */
-		err |= read_dev(bme680, REG_EAS_STATUS, &meas_status, 1);
+		err |= read_dev(bme680, REG_MEAS_STATUS, &meas_status, 1);
 		gas_measuring = (meas_status >> 6) & 1;
 		any_measuring = (meas_status >> 5) & 1;
 
@@ -217,7 +228,6 @@ int bme680_poll(bme680_t *bme680) {
 /********************************************************************/
 /* assume start'd and poll'd */
 int bme680_read(bme680_t *bme680) {
-
 	/* begin by reading ADCs */
 	uint8_t buffer[3] = {0, 0 ,0};
 	int err = 0;
@@ -230,7 +240,6 @@ int bme680_read(bme680_t *bme680) {
 
 	err |= read_dev(bme680, 0x25, buffer, 2);
 	bme680->adc.hum = (buffer[0] << 8) | buffer[1];
-
 
 	/* adc readings are only 20-bit when the IIR filter is enabled.
 	 * otherwise, it depends on the oversample settings.
@@ -302,7 +311,6 @@ static int const_array2_int[16] = {
 /********************************************************************/
 /********************************************************************/
 static void calc_temp_comp_1 (bme680_t *bme680) {
-
 	double var1, var2, temp_comp;
 
 	var1 = (((double)bme680->adc.temp / 16384.0) - ((double)bme680->cal.par_t1 / 1024.0)) * 
@@ -317,7 +325,6 @@ static void calc_temp_comp_1 (bme680_t *bme680) {
 
 /********************************************************************/
 static void calc_temp_comp_2 (bme680_t *bme680) {
-
 	int32_t var1, var2, var3, temp_comp;
 
 	var1 = ((int32_t)bme680->adc.temp >> 3) - ((int32_t) bme680->cal.par_t1 << 1);
@@ -338,9 +345,7 @@ static void calc_temp_comp (bme680_t *bme680) {
 }
 
 /********************************************************************/
-/********************************************************************/
 static void calc_press_comp_1 (bme680_t *bme680) {
-
 	double var1, var2, var3, press_comp;
 
 	var1 = ((double)bme680->fcomp.tfine / 2.0) - 64000.0;
@@ -362,7 +367,6 @@ static void calc_press_comp_1 (bme680_t *bme680) {
 
 /********************************************************************/
 static void calc_press_comp_2 (bme680_t *bme680 )  {
-
 	int32_t var1, var2, var3, press_comp;
 
 	var1 = ((int32_t)bme680->icomp.tfine >> 1) - 64000;
@@ -398,9 +402,7 @@ static void calc_press_comp (bme680_t *bme680) {
 }
 
 /********************************************************************/
-/********************************************************************/
 static void calc_hum_comp_1 (bme680_t *bme680) {
-	
 	double var1, var2, var3, var4, hum_comp, temp_comp;
 
 	temp_comp = bme680->fcomp.temp;
@@ -417,7 +419,6 @@ static void calc_hum_comp_1 (bme680_t *bme680) {
 
 /********************************************************************/
 static void calc_hum_comp_2 (bme680_t *bme680) {
-
 	int32_t  var1, var2, var3, var4, var5, var6, temp_scaled, hum_comp;
 	
 	temp_scaled = (int32_t)bme680->icomp.temp;
@@ -448,7 +449,6 @@ static void calc_hum_comp (bme680_t *bme680) {
 /********************************************************************/
 // TODO: read one big contiguous block
 int bme680_calibrate(bme680_t *bme680) {
-
 	uint8_t buffer[3] = {0, 0 ,0};
 	int err = 0;
 
@@ -541,7 +541,6 @@ int bme680_calibrate(bme680_t *bme680) {
 }
 
 /********************************************************************/
-/********************************************************************/
 static void calc_gas_res_1(bme680_t *bme680) {
 	double var1, gas_res;
 	var1 = (1340.0 + 5.0 * bme680->cal.range_switching_error) * const_array1[bme680->adc.gas_range];
@@ -572,7 +571,6 @@ static void calc_gas_res(bme680_t *bme680) {
 }
 
 /********************************************************************/
-/********************************************************************/
 void bme680_print_calibration (bme680_t *bme680) {
 	printf("par_t1: %d\n", bme680->cal.par_t1);
 	printf("par_t2: %d\n", bme680->cal.par_t2);
@@ -602,6 +600,7 @@ void bme680_print_calibration (bme680_t *bme680) {
 	printf("res_heat_val: %d\n", bme680->cal.res_heat_val);
 }
 
+/********************************************************************/
 static uint8_t calc_target_1(bme680_t *bme680, double target, double ambient) {
 	double var1, var2, var3, var4, var5;
 	uint8_t res_heat;
@@ -616,6 +615,7 @@ static uint8_t calc_target_1(bme680_t *bme680, double target, double ambient) {
 	return res_heat;
 }
 
+/********************************************************************/
 static uint8_t calc_target_2(bme680_t *bme680, double target, double ambient) {
 	int32_t var1, var2, var3, var4, var5, res_heat_x100;
 	uint8_t res_heat;
@@ -631,6 +631,7 @@ static uint8_t calc_target_2(bme680_t *bme680, double target, double ambient) {
 	return res_heat;
 }
 
+/********************************************************************/
 uint8_t bme680_calc_target(bme680_t *bme680, double target, double ambient) {
 	if (BME680_IS_FLOAT(bme680->mode)) {
 		return calc_target_1(bme680, target, ambient);

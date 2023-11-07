@@ -15,7 +15,6 @@
 static int fd;
 
 int i2c_init(void) {
-
 	fd = open(I2C_DEVICE, O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "could not open device: %s\n", I2C_DEVICE);
@@ -33,7 +32,6 @@ int i2c_init(void) {
 
 
 int i2c_read(uint8_t reg, uint8_t *dst, uint32_t size) {
-
 	uint8_t cmd[2] = {reg, 0x00};
 	write(fd, cmd, 2);
 	
@@ -42,12 +40,12 @@ int i2c_read(uint8_t reg, uint8_t *dst, uint32_t size) {
 		return I2C_ERR;
 	
 	}
+
 	return I2C_OK;
 }
 
 
 int i2c_write(uint8_t reg, uint8_t value) {
-	
 	uint8_t cmd[2] = {reg, value};
 	
 	if (write(fd, cmd, 2) != 2) {
@@ -65,3 +63,4 @@ int i2c_deinit(void) {
 
 	return I2C_OK;
 }
+
