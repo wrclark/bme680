@@ -46,7 +46,7 @@ int main(void) {
 	/* only 1 setpoint */
 	bme680.cfg.res_heat[0] = bme680_calc_target(&bme680, HEATER_TARGET, AMBIENT_TEMP_GUESS);
 	bme680.cfg.idac_heat[0] = BME680_IDAC(100);
-	bme680.cfg.gas_wait[0] = BME680_GAS_WAIT(50, BME680_GAS_WAIT_X4);
+	bme680.cfg.gas_wait[0] = BME680_GAS_WAIT(50, BME680_GAS_WAIT_X16);
 
 	bme680.setpoint = 0;
 	
@@ -95,5 +95,9 @@ void pretty_print(bme680_t *bme680) {
 	double h = bme680->fcomp.hum;
 	double gr = bme680->fcomp.gas_res;
 
-	printf("temp=%.2f°C, press=%.2f mbar, hum=%.2f %%RH, gas_res=%.2f\n", t, p, h, gr);
+	uint8_t gv = bme680->gas_valid;
+	uint8_t hs = bme680->heat_stab;
+
+	printf("temp=%.2f°C, press=%.2f mbar, hum=%.2f %%RH, gas_res=%.2f gv=%d hs=%d\n",
+		       	t, p, h, gr, gv, hs);
 }
