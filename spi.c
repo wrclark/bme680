@@ -1,3 +1,9 @@
+/* 
+
+Example SPI use on linux/raspberry pi
+
+*/
+
 #include <stdio.h>
 #include <stdint.h>
 #include <unistd.h>

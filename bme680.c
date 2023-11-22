@@ -1,7 +1,4 @@
-#define _DEFAULT_SOURCE
-
 #include <stdio.h>
-#include <unistd.h>
 
 #include "bme680.h"
 #include "registers.h"
@@ -147,7 +144,7 @@ int bme680_reset(bme680_t *bme680) {
 	}
 
 	ret = bme680->dev.write(reg, magic);
-	usleep(2000); /* sleep for 2 ms */
+	bme680->dev.sleep(2000); /* sleep for 2 ms */
 
 	return ret;
 }
@@ -215,7 +212,7 @@ int bme680_poll(bme680_t *bme680) {
 
 
 	do {
-		usleep(5000); /* 5 ms */
+		bme680->dev.sleep(5000); /* 5 ms */
 		err |= read_dev(bme680, REG_MEAS_STATUS, &meas_status, 1);
 		gas_measuring = (meas_status >> 6) & 1;
 		any_measuring = (meas_status >> 5) & 1;

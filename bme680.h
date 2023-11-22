@@ -50,6 +50,7 @@ struct bme680_dev {
 	int (*init)   (void);
 	int (*read)   (uint8_t reg, uint8_t *dst, uint32_t size);
 	int (*write)  (uint8_t reg, uint8_t value);
+	int (*sleep)  (uint32_t dur_ms);
 	int (*deinit) (void);
 };
 

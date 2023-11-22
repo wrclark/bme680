@@ -1,3 +1,6 @@
+/* for usleep() */
+#define _DEFAULT_SOURCE 
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +30,8 @@ int main(void) {
 	bme680.dev.read   = spi_read;
 	bme680.dev.write  = spi_write;
 	bme680.dev.deinit = spi_deinit;
+
+	bme680.dev.sleep  = usleep;
 
 	mode = BME680_MODE_FLOAT | BME680_SPI | BME680_ENABLE_GAS;
 

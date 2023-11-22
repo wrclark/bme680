@@ -1,3 +1,9 @@
+/* 
+
+Example I2C use on linux/raspberry pi
+
+*/
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <linux/i2c.h>
