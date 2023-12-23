@@ -1,5 +1,5 @@
 #ifndef BME680_H
-#define BME680
+#define BME680_H
 
 #include <stdint.h>
 

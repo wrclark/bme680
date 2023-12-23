@@ -157,7 +157,7 @@ int bme680_configure(bme680_t *bme680) {
 	meas = hum = filter = err = 0;
 
 	/* ctrl_meas. the last 0 is ticked on to enable forced mode,
-	 * but the config has to be written fist. strange behaviour.
+	 * but the config has to be written first. strange behaviour.
 	 */
 	meas   = bme680->cfg.osrs_t << 5 | bme680->cfg.osrs_p << 2; 
 	hum    = bme680->cfg.osrs_h;
