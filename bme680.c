@@ -299,6 +299,7 @@ static int const_array1_int[16] = {
 	2147483647
 };
 
+/* long int maybe */
 static int const_array2_int[16] = {
 	4096000000, 2048000000, 1024000000, 512000000, 255744255,
 	127110228, 64000000, 32258064, 16016016, 8000000, 4000000,
@@ -529,7 +530,7 @@ int bme680_calibrate(bme680_t *bme680) {
 	bme680->cal.range_switching_error = buffer[0];
 
 	err |= read_dev(bme680, 0x02, buffer, 1);
-	bme680->cal.res_heat_range = (buffer[0] >> 4) & 0b11;
+	bme680->cal.res_heat_range = (buffer[0] >> 4) & 3;
 
 	err |= read_dev(bme680, 0x00, buffer, 1);
 	bme680->cal.res_heat_val = buffer[0];

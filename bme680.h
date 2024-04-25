@@ -8,7 +8,7 @@
 #define BME680_GAS_ENABLED(m) (((m >> 2) & 1) == 1) 
 
 #define BME680_IDAC(c) (c << 1)
-#define BME680_GAS_WAIT(val, scal) ((uint8_t)(((scal & 0b11) << 6) | (val & 0b111111)))
+#define BME680_GAS_WAIT(val, scal) ((uint8_t)(((scal & 3) << 6) | (val & 63)))
 
 /* connection modes */
 #define BME680_SPI   1
@@ -22,27 +22,27 @@
 #define BME680_ENABLE_GAS 4
 
 /* config values */
-#define BME680_OVERSAMPLE_X1  0b001
-#define BME680_OVERSAMPLE_X2  0b010
-#define BME680_OVERSAMPLE_X4  0b011
-#define BME680_OVERSAMPLE_X8  0b100
-#define BME680_OVERSAMPLE_X16 0b101
+#define BME680_OVERSAMPLE_X1  1
+#define BME680_OVERSAMPLE_X2  2
+#define BME680_OVERSAMPLE_X4  3
+#define BME680_OVERSAMPLE_X8  4
+#define BME680_OVERSAMPLE_X16 5
 
 /* IIR filter */
-#define BME680_IIR_COEFF_0   0b000
-#define BME680_IIR_COEFF_1   0b001
-#define BME680_IIR_COEFF_3   0b010
-#define BME680_IIR_COEFF_7   0b011
-#define BME680_IIR_COEFF_15  0b100
-#define BME680_IIR_COEFF_31  0b101
-#define BME680_IIR_COEFF_63  0b110
-#define BME680_IIR_COEFF_127 0b111
+#define BME680_IIR_COEFF_0    0
+#define BME680_IIR_COEFF_1    1
+#define BME680_IIR_COEFF_3    2
+#define BME680_IIR_COEFF_7    3
+#define BME680_IIR_COEFF_15   4
+#define BME680_IIR_COEFF_31   5
+#define BME680_IIR_COEFF_63   6
+#define BME680_IIR_COEFF_127  7
 
 /* gas related values */
-#define BME680_GAS_WAIT_X1  0b00
-#define BME680_GAS_WAIT_X4  0b01
-#define BME680_GAS_WAIT_X16 0b10
-#define BME680_GAS_WAIT_X64 0b11
+#define BME680_GAS_WAIT_X1    0
+#define BME680_GAS_WAIT_X4    1
+#define BME680_GAS_WAIT_X16   2
+#define BME680_GAS_WAIT_X64   3
 
 
 /* user supplied spi/i2c functions */
