@@ -1,6 +1,6 @@
 # bme680
 
-Example implementation of BME680 software. The I2C/SPI drivers are meant to run on a Raspberry Pi 4 but you can figure out how to port it.
+Example implementation of BME680 software. The I2C/SPI drivers are meant to run on a Raspberry Pi 4.
 
 
 ![Raspberry Pi](.gitea/pi.png)
@@ -92,4 +92,4 @@ gas resistance: 14702.868852 Ohm
 === heat_stab_r: 1
 ```
 
-Note: Two different BME680 devices, one on each type of bus. Perhaps they'd read closer to eachother following a burn-in or something.
+Note: Do not trust the gas resistance measurement if `heat_stab_r` is not `1`.
