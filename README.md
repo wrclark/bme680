@@ -117,6 +117,8 @@ See file `example/log.c`
 
 Compile and run
 ```sh
+$ make
+$ mkdir data
 $ stdbuf -o0 ./bme680_log_i2c 2>&1 | tee -a data/i2c.txt &
 $ stdbuf -o0 ./bme680_log_spi 2>&1 | tee -a data/spi.txt &
 # wait a couple of hours or days ..
