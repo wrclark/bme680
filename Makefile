@@ -14,7 +14,7 @@ CFILES = $(wildcard *.c)
 OBJECTS = $(CFILES:.c=.o)
 BIN = bme680
 
-all: spi i2c
+all: spi i2c log
 
 log: $(OBJECTS)
 	@echo ">>> $(BIN)_log_spi"

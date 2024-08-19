@@ -15,9 +15,18 @@ Connecting the purple BME680 module board to SPI:
 | CS       | "CS"       | GPIO 8 (Pin 24)  |
 
 ### build
-Run `make` to build demo programs `bme680_spi` and `bme680_i2c` that use the pins/dev configured in `spi.c` and `i2c.c`
+```sh
+$ make
+```
+This will create demo programs `bme680_i2c` and `bme680_spi`, and logging programs `bme680_log_i2c` and `bme680_log_spi`. They all expect the pin/devices specified in `spi.c` and `i2c.c`.
 
-Also `make log` creates spi and i2c versions of the log program
+The loggers spit out the following every minute:
+```
+2024-08-19T18:20:00+0100 22.2358 101068 65.8092 11054.4 1
+```
+`Date`, `Temperature °C`, `Pressure Pa`, `% RH`, `Measured Gas resistance Ω`, `Heat stability bit`
+
+>Note: disregard measured gas resistance if the heat stability bit is not 1.
 
 ## spi demo
 ```
