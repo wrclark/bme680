@@ -1,2 +1,5 @@
 *.o
 bme680
+bme680_i2c
+bme680_spi
+bme680_log*

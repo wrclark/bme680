@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "bme680.h"
+#include "bme680_util.h"
 #include "i2c.h"
 #include "spi.h"
 
@@ -20,21 +21,33 @@ int main(void) {
 
 	/* 1. Assign functions for interacting with the device */
 
-//	bme680.dev.init   = i2c_init;	
-//	bme680.dev.read   = i2c_read;
-//	bme680.dev.write  = i2c_write;
-//	bme680.dev.deinit = i2c_deinit;
-
-	bme680.dev.init   = spi_init;
+#if defined(USE_SPI) && defined(USE_I2C)
+    #error "Both USE_SPI and USE_I2C are defined. Please define only one."
+#elif !defined(USE_SPI) && !defined(USE_I2C)
+    #error "Neither USE_SPI nor USE_I2C is defined. Please define one."
+#elif defined(USE_SPI)
+    bme680.dev.init   = spi_init;	
 	bme680.dev.read   = spi_read;
 	bme680.dev.write  = spi_write;
 	bme680.dev.deinit = spi_deinit;
+#elif defined(USE_I2C)
+	bme680.dev.init   = i2c_init;	
+	bme680.dev.read   = i2c_read;
+	bme680.dev.write  = i2c_write;
+	bme680.dev.deinit = i2c_deinit;
+#endif
+
 
 	bme680.dev.sleep  = usleep;
 
 	/* 2. set the device mode */
-	mode = BME680_MODE_FLOAT | BME680_SPI | BME680_ENABLE_GAS;
-	/*     BME680_MODE_INT   | BME680_I2C; */
+	mode = BME680_MODE_FLOAT | BME680_ENABLE_GAS;
+#if defined(USE_SPI)
+    mode |= BME680_SPI;
+#elif defined(USE_I2C)
+	mode |= BME680_I2C;
+#endif
+
 
 
 	/* 3. initialise dev func's, and check device id */

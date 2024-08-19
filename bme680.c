@@ -1,8 +1,6 @@
 #include <stdio.h>
 
 #include "bme680.h"
-#include "registers.h"
-
 
 static void calc_temp_comp(bme680_t *bme680);
 static void calc_press_comp(bme680_t *bme680);
@@ -152,9 +150,9 @@ int bme680_reset(bme680_t *bme680) {
 /********************************************************************/
 /* configure device */
 int bme680_configure(bme680_t *bme680) {
-	uint8_t meas, hum, filter, ctrl_gas1, ctrl_gas0, err;
-	int i;
-	meas = hum = filter = err = 0;
+	uint8_t meas, hum, filter, ctrl_gas1, ctrl_gas0, i;
+	int err = 0;
+	meas = hum = filter = 0;
 
 	/* ctrl_meas. the last 0 is ticked on to enable forced mode,
 	 * but the config has to be written first. strange behaviour.
@@ -299,12 +297,14 @@ static int const_array1_int[16] = {
 	2147483647
 };
 
-/* long int maybe */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Woverflow"
 static int const_array2_int[16] = {
 	4096000000, 2048000000, 1024000000, 512000000, 255744255,
 	127110228, 64000000, 32258064, 16016016, 8000000, 4000000,
 	2000000, 1000000, 500000, 250000, 125000
 };
+#pragma GCC diagnostic pop
 
 /********************************************************************/
 /********************************************************************/
@@ -364,6 +364,8 @@ static void calc_press_comp_1 (bme680_t *bme680) {
 }
 
 /********************************************************************/
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 static void calc_press_comp_2 (bme680_t *bme680 )  {
 	int32_t var1, var2, var3, press_comp;
 
@@ -375,7 +377,7 @@ static void calc_press_comp_2 (bme680_t *bme680 )  {
 			((int32_t)bme680->cal.par_p3 << 5)) >> 3) +  (((int32_t)bme680->cal.par_p2 * var1) >> 1);
 	var1 = var1 >> 18;
 	var1 = ((32768 + var1) * (int32_t)bme680->cal.par_p1) >> 15;
-	press_comp = 1048576 - bme680->adc.press; // bosch code pg 19 says "press_raw" here ???
+	press_comp = 1048576 - bme680->adc.press; /* bosch code pg 19 says "press_raw" here ??? */
 	press_comp = (uint32_t)((press_comp - (var2 >> 12)) * ((uint32_t)3125));
 	if (press_comp >= (1 << 30))
 		press_comp = ((press_comp / (uint32_t)var1) << 1);
@@ -389,6 +391,7 @@ static void calc_press_comp_2 (bme680_t *bme680 )  {
 	press_comp = (int32_t)(press_comp) + ((var1 + var2 + var3 + ((int32_t)bme680->cal.par_p7 << 7)) >> 4);
 	bme680->icomp.press = press_comp;
 }
+#pragma GCC diagnostic pop
 
 /********************************************************************/
 static void calc_press_comp (bme680_t *bme680) {
@@ -445,7 +448,7 @@ static void calc_hum_comp (bme680_t *bme680) {
 }
 
 /********************************************************************/
-// TODO: read one big contiguous block
+/* TODO: read one big contiguous block */
 int bme680_calibrate(bme680_t *bme680) {
 	uint8_t buffer[3] = {0, 0 ,0};
 	int err = 0;
@@ -458,7 +461,7 @@ int bme680_calibrate(bme680_t *bme680) {
 	bme680->cal.par_t2 = (buffer[1] << 8) | buffer[0];
 
 	err |= read_dev(bme680, 0x8C, buffer, 1);
-	bme680->cal.par_t3 = buffer[0];
+	bme680->cal.par_t3 = (int8_t)buffer[0];
 
 
 	/* pressure */
@@ -469,7 +472,7 @@ int bme680_calibrate(bme680_t *bme680) {
 	bme680->cal.par_p2 = (buffer[1] << 8) | buffer[0];
 
 	err |= read_dev(bme680, 0x92, buffer, 1);
-	bme680->cal.par_p3 = buffer[0];
+	bme680->cal.par_p3 = (int8_t)buffer[0];
 
 	err |= read_dev(bme680, 0x94, buffer, 2);
 	bme680->cal.par_p4 = (buffer[1] << 8) | buffer[0];
@@ -478,10 +481,10 @@ int bme680_calibrate(bme680_t *bme680) {
 	bme680->cal.par_p5 = (buffer[1] << 8) | buffer[0];
 
 	err |= read_dev(bme680, 0x99, buffer, 1);
-	bme680->cal.par_p6 = buffer[0];
+	bme680->cal.par_p6 = (int8_t)buffer[0];
 
 	err |= read_dev(bme680, 0x98, buffer, 1);
-	bme680->cal.par_p7 = buffer[0];
+	bme680->cal.par_p7 = (int8_t)buffer[0];
 
 	err |= read_dev(bme680, 0x9C, buffer, 1);
 	bme680->cal.par_p8 = (buffer[1] << 8) | buffer[0];
@@ -501,19 +504,19 @@ int bme680_calibrate(bme680_t *bme680) {
 	bme680->cal.par_h2 = (buffer[0] << 4) | ((buffer[1] >> 4) & 0xF);
 
 	err |= read_dev(bme680, 0xE4, buffer, 1);
-	bme680->cal.par_h3 = buffer[0];
+	bme680->cal.par_h3 = (int8_t)buffer[0];
 
 	err |= read_dev(bme680, 0xE5, buffer, 1);
-	bme680->cal.par_h4 = buffer[0];
+	bme680->cal.par_h4 = (int8_t)buffer[0];
 
 	err |= read_dev(bme680, 0xE6, buffer, 1);
-	bme680->cal.par_h5 = buffer[0];
+	bme680->cal.par_h5 = (int8_t)buffer[0];
 
 	err |= read_dev(bme680, 0xE7, buffer, 1);
 	bme680->cal.par_h6 = buffer[0];
 
 	err |= read_dev(bme680, 0xE8, buffer, 1);
-	bme680->cal.par_h7 = buffer[0];
+	bme680->cal.par_h7 = (int8_t)buffer[0];
 
 
 	/* gas */	
@@ -533,7 +536,7 @@ int bme680_calibrate(bme680_t *bme680) {
 	bme680->cal.res_heat_range = (buffer[0] >> 4) & 3;
 
 	err |= read_dev(bme680, 0x00, buffer, 1);
-	bme680->cal.res_heat_val = buffer[0];
+	bme680->cal.res_heat_val = (int8_t)buffer[0];
 
 	return err;
 }
@@ -568,35 +571,7 @@ static void calc_gas_res(bme680_t *bme680) {
 	}
 }
 
-/********************************************************************/
-void bme680_print_calibration (bme680_t *bme680) {
-	printf("par_t1: %d\n", bme680->cal.par_t1);
-	printf("par_t2: %d\n", bme680->cal.par_t2);
-	printf("par_t3: %d\n", bme680->cal.par_t3);
-	printf("par_p1: %d\n", bme680->cal.par_p1);
-	printf("par_p2: %d\n", bme680->cal.par_p2);
-	printf("par_p3: %d\n", bme680->cal.par_p3);
-	printf("par_p4: %d\n", bme680->cal.par_p4);
-	printf("par_p5: %d\n", bme680->cal.par_p5);
-	printf("par_p6: %d\n", bme680->cal.par_p6);
-	printf("par_p7: %d\n", bme680->cal.par_p7);
-	printf("par_p8: %d\n", bme680->cal.par_p8);
-	printf("par_p9: %d\n", bme680->cal.par_p9);
-	printf("par_p10: %d\n", bme680->cal.par_p10);
-	printf("par_h1: %d\n", bme680->cal.par_h1);
-	printf("par_h2: %d\n", bme680->cal.par_h2);
-	printf("par_h3: %d\n", bme680->cal.par_h3);
-	printf("par_h4: %d\n", bme680->cal.par_h4);
-	printf("par_h5: %d\n", bme680->cal.par_h5);
-	printf("par_h6: %d\n", bme680->cal.par_h6);
-	printf("par_h7: %d\n", bme680->cal.par_h7);
-	printf("par_g1: %d\n", bme680->cal.par_g1);
-	printf("par_g2: %d\n", bme680->cal.par_g2);
-	printf("par_g3: %d\n", bme680->cal.par_g3);
-	printf("range_switching_error: %d\n", bme680->cal.range_switching_error);
-	printf("res_heat_range: %d\n", bme680->cal.res_heat_range);
-	printf("res_heat_val: %d\n", bme680->cal.res_heat_val);
-}
+
 
 /********************************************************************/
 static uint8_t calc_target_1(bme680_t *bme680, double target, double ambient) {
@@ -614,6 +589,8 @@ static uint8_t calc_target_1(bme680_t *bme680, double target, double ambient) {
 }
 
 /********************************************************************/
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-conversion"
 static uint8_t calc_target_2(bme680_t *bme680, double target, double ambient) {
 	int32_t var1, var2, var3, var4, var5, res_heat_x100;
 	uint8_t res_heat;
@@ -628,6 +605,7 @@ static uint8_t calc_target_2(bme680_t *bme680, double target, double ambient) {
 	res_heat = (uint8_t)((res_heat_x100 + 50) / 100);
 	return res_heat;
 }
+#pragma GCC diagnostic pop
 
 /********************************************************************/
 uint8_t bme680_calc_target(bme680_t *bme680, double target, double ambient) {

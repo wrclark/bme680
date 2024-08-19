@@ -1,8 +1,4 @@
-/* 
-
-Example SPI use on linux/raspberry pi
-
-*/
+/* Raspberry Pi SPI */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -35,52 +31,48 @@ Example SPI use on linux/raspberry pi
 
 static int fd;
 
-//static void print_access(const char *name, uint8_t reg, uint8_t *dst, uint32_t size);
-
 int spi_init(void) {
-
 	uint8_t mode = SPI_MODE;
 	uint8_t bits = SPI_BITS;
 	uint32_t speed = SPI_SPEED;
 
 	if ((fd = open(SPI_DEVICE, O_RDWR)) < 0) {
 		fprintf(stderr, "spi open(%s)\n", SPI_DEVICE);
-		return SPI_ERR;
+		return 1;
 	}
 
 	if (ioctl(fd, SPI_IOC_RD_MODE, &mode) == -1) {
 		fprintf(stderr, "SPI_IOC_RD_MODE\n");
-		return SPI_ERR;
+		return 1;
 	}
 
 	if (ioctl(fd, SPI_IOC_WR_MODE, &mode) == -1) {
 		fprintf(stderr, "SPI_IOC_WR_MODE\n");
-		return SPI_ERR;
+		return 1;
 	}
 
 	if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits) == -1) {
 		fprintf(stderr, "SPI_IOC_WR_BITS_PER_WORD\n");
-		return SPI_ERR;
+		return 1;
 	}
 
 	if (ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &bits) == -1) {
 		fprintf(stderr, "SPI_IOC_RD_BITS_PER_WORD\n");
-		return SPI_ERR;
+		return 1;
 	}
 
 	if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) == -1) {
 		fprintf(stderr, "SPI_IOC_WR_MAX_SPEED_HZ\n");
-		return SPI_ERR;
+		return 1;
 	}
 
 	if (ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed) == -1) {
 		fprintf(stderr, "SPI_IOC_RD_MAX_SPEED_HZ\n");
-		return SPI_ERR;
+		return 1;
 	}
 
 
-//	puts("spi_init");
-	return SPI_OK;
+	return 0;
 }
 
 /* bme680 auto-increments for spi reads */
@@ -101,11 +93,10 @@ int spi_read(uint8_t reg, uint8_t *dst, uint32_t size) {
 
 	if (ioctl(fd, SPI_IOC_MESSAGE(2), tr) < 0) {
 		fprintf(stderr, "spi_read()\n");
-		return SPI_ERR;
+		return 1;
 	}
 
-//	print_access("spi_read", reg, dst, size);
-	return SPI_OK;
+	return 0;
 }
 
 /* bme680 does NOT auto-increment for spi writes, so one at a time */
@@ -126,32 +117,16 @@ int spi_write(uint8_t reg, uint8_t value) {
 
 	if (ioctl(fd, SPI_IOC_MESSAGE(2), tr) < 0) {
 		fprintf(stderr, "spi_write()\n");
-		return SPI_ERR;
+		return 1;
 	}
 
-//	print_access("spi_write", reg, &value, 1);
-	return SPI_OK;
+	return 0;
 }
 
 int spi_deinit(void) {
-//	puts("spi_deinit");
 	if (fd) {
 		close(fd);
 	}
 
-	return SPI_OK;
+	return 0;
 }
-
-/*
-static void print_access(const char *name, uint8_t reg, uint8_t *dst, uint32_t size) {
-	printf("%s: %.2X (%d) [", name, reg, size);
-	for(uint32_t i=0; i<size; i++) {
-		printf("%.2X", dst[i]);
-		if (i < (size - 1)) {
-			printf(", ");
-		}
-	}
-	printf("]\n");
-}
-*/
-

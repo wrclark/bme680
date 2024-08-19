@@ -14,6 +14,11 @@ Connecting the purple BME680 module board to SPI:
 | SCLK     | "SCL"      | GPIO 11 (Pin 23) |
 | CS       | "CS"       | GPIO 8 (Pin 24)  |
 
+### build
+Run `make` to build demo programs `bme680_spi` and `bme680_i2c` that use the pins/dev configured in `spi.c` and `i2c.c`
+
+Also `make log` creates spi and i2c versions of the log program
+
 ## spi demo
 ```
 par_t1: 26203
