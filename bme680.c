@@ -279,6 +279,16 @@ int bme680_read(bme680_t *bme680) {
 /*  These arrays are used to compute a sensor heating value `res_heat' */
 /*  for a specified heating target, specified in degree C.             */
 /***********************************************************************/
+/*
+ * Below functions are out of the datasheet
+ */
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Woverflow"
+#pragma GCC diagnostic ignored "-Wstrict-overflow"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wfloat-conversion"
+
 static double const_array1[16] = {
 	1, 1, 1, 1, 1, 0.99, 1, 0.992, 1,
        	1, 0.998, 0.995, 1, 0.99, 1, 1
@@ -297,14 +307,11 @@ static int const_array1_int[16] = {
 	2147483647
 };
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Woverflow"
 static int const_array2_int[16] = {
 	4096000000, 2048000000, 1024000000, 512000000, 255744255,
 	127110228, 64000000, 32258064, 16016016, 8000000, 4000000,
 	2000000, 1000000, 500000, 250000, 125000
 };
-#pragma GCC diagnostic pop
 
 /********************************************************************/
 /********************************************************************/
@@ -364,8 +371,6 @@ static void calc_press_comp_1 (bme680_t *bme680) {
 }
 
 /********************************************************************/
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-conversion"
 static void calc_press_comp_2 (bme680_t *bme680 )  {
 	int32_t var1, var2, var3, press_comp;
 
@@ -391,7 +396,6 @@ static void calc_press_comp_2 (bme680_t *bme680 )  {
 	press_comp = (int32_t)(press_comp) + ((var1 + var2 + var3 + ((int32_t)bme680->cal.par_p7 << 7)) >> 4);
 	bme680->icomp.press = press_comp;
 }
-#pragma GCC diagnostic pop
 
 /********************************************************************/
 static void calc_press_comp (bme680_t *bme680) {
@@ -446,6 +450,78 @@ static void calc_hum_comp (bme680_t *bme680) {
 		calc_hum_comp_2(bme680);
 	}
 }
+
+/********************************************************************/
+static void calc_gas_res_1(bme680_t *bme680) {
+	double var1, gas_res;
+	var1 = (1340.0 + 5.0 * bme680->cal.range_switching_error) * const_array1[bme680->adc.gas_range];
+	gas_res = var1 * const_array2[bme680->adc.gas_range] / (bme680->adc.gas - 512.0 + var1);
+	bme680->fcomp.gas_res = gas_res;
+}
+
+/********************************************************************/
+static void calc_gas_res_2(bme680_t *bme680) {
+	int64_t var1, var2;
+	int32_t gas_res;
+
+	var1 = (int64_t)(((1340 + (5 * (int64_t)bme680->cal.range_switching_error)) *
+			((int64_t)const_array1_int[bme680->adc.gas_range])) >> 16);
+	var2 = (int64_t)(bme680->adc.gas << 15) - (int64_t)(1 << 24) + var1;
+	gas_res = (int32_t)((((int64_t)(const_array2_int[bme680->adc.gas_range] * 
+			(int64_t)var1) >> 9) + (var2 >> 1)) / var2);
+	bme680->icomp.gas_res = gas_res;
+}
+
+/********************************************************************/
+static void calc_gas_res(bme680_t *bme680) {
+	if (BME680_IS_FLOAT(bme680->mode)) {
+		calc_gas_res_1(bme680);
+	} else {
+		calc_gas_res_2(bme680);
+	}
+}
+
+/********************************************************************/
+static uint8_t calc_target_1(bme680_t *bme680, double target, double ambient) {
+	double var1, var2, var3, var4, var5;
+	uint8_t res_heat;
+
+	var1 = ((double)bme680->cal.par_g1 / 16.0) + 49.0;
+	var2 = (((double)bme680->cal.par_g2 / 32768.0) * 0.0005) + 0.00235;
+	var3 = (double)bme680->cal.par_g3 / 1024.0;
+	var4 = var1 * (1.0 + (var2 * (double)target));
+	var5 = var4 + (var3 * (double)ambient);
+	res_heat = (uint8_t)(3.4 * ((var5 * (4.0 / (4.0 + (double)bme680->cal.res_heat_range)) *
+			(1.0 / (1.0 + ((double)bme680->cal.res_heat_val * 0.002)))) - 25));
+	return res_heat;
+}
+
+/********************************************************************/
+static uint8_t calc_target_2(bme680_t *bme680, double target, double ambient) {
+	int32_t var1, var2, var3, var4, var5, res_heat_x100;
+	uint8_t res_heat;
+
+	var1 = (((int32_t)ambient * bme680->cal.par_g3) / 10) << 8;
+	var2 = (bme680->cal.par_g1 + 784) * (((((bme680->cal.par_g2 + 154009) * target * 5) /
+			100) + 3276800) / 10);
+	var3 = var1 + (var2 >> 1);
+	var4 = (var3 / (bme680->cal.res_heat_range + 4));
+	var5 = (131 * bme680->cal.res_heat_val) + 65536;
+	res_heat_x100 = (int32_t)(((var4 / var5) - 250) * 34);
+	res_heat = (uint8_t)((res_heat_x100 + 50) / 100);
+	return res_heat;
+}
+
+/********************************************************************/
+uint8_t bme680_calc_target(bme680_t *bme680, double target, double ambient) {
+	if (BME680_IS_FLOAT(bme680->mode)) {
+		return calc_target_1(bme680, target, ambient);
+	} else {
+		return calc_target_2(bme680, target, ambient);
+	}
+}
+
+#pragma GCC diagnostic pop
 
 /********************************************************************/
 /* TODO: read one big contiguous block */
@@ -540,79 +616,3 @@ int bme680_calibrate(bme680_t *bme680) {
 
 	return err;
 }
-
-/********************************************************************/
-static void calc_gas_res_1(bme680_t *bme680) {
-	double var1, gas_res;
-	var1 = (1340.0 + 5.0 * bme680->cal.range_switching_error) * const_array1[bme680->adc.gas_range];
-	gas_res = var1 * const_array2[bme680->adc.gas_range] / (bme680->adc.gas - 512.0 + var1);
-	bme680->fcomp.gas_res = gas_res;
-}
-
-/********************************************************************/
-static void calc_gas_res_2(bme680_t *bme680) {
-	int64_t var1, var2;
-	int32_t gas_res;
-
-	var1 = (int64_t)(((1340 + (5 * (int64_t)bme680->cal.range_switching_error)) *
-			((int64_t)const_array1_int[bme680->adc.gas_range])) >> 16);
-	var2 = (int64_t)(bme680->adc.gas << 15) - (int64_t)(1 << 24) + var1;
-	gas_res = (int32_t)((((int64_t)(const_array2_int[bme680->adc.gas_range] * 
-			(int64_t)var1) >> 9) + (var2 >> 1)) / var2);
-	bme680->icomp.gas_res = gas_res;
-}
-
-/********************************************************************/
-static void calc_gas_res(bme680_t *bme680) {
-	if (BME680_IS_FLOAT(bme680->mode)) {
-		calc_gas_res_1(bme680);
-	} else {
-		calc_gas_res_2(bme680);
-	}
-}
-
-
-
-/********************************************************************/
-static uint8_t calc_target_1(bme680_t *bme680, double target, double ambient) {
-	double var1, var2, var3, var4, var5;
-	uint8_t res_heat;
-
-	var1 = ((double)bme680->cal.par_g1 / 16.0) + 49.0;
-	var2 = (((double)bme680->cal.par_g2 / 32768.0) * 0.0005) + 0.00235;
-	var3 = (double)bme680->cal.par_g3 / 1024.0;
-	var4 = var1 * (1.0 + (var2 * (double)target)); /* */
-	var5 = var4 + (var3 * (double)ambient);
-	res_heat = (uint8_t)(3.4 * ((var5 * (4.0 / (4.0 + (double)bme680->cal.res_heat_range)) *
-			(1.0 / (1.0 + ((double)bme680->cal.res_heat_val * 0.002)))) - 25));
-	return res_heat;
-}
-
-/********************************************************************/
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wfloat-conversion"
-static uint8_t calc_target_2(bme680_t *bme680, double target, double ambient) {
-	int32_t var1, var2, var3, var4, var5, res_heat_x100;
-	uint8_t res_heat;
-
-	var1 = (((int32_t)ambient * bme680->cal.par_g3) / 10) << 8;
-	var2 = (bme680->cal.par_g1 + 784) * (((((bme680->cal.par_g2 + 154009) * target * 5) /
-			100) + 3276800) / 10);
-	var3 = var1 + (var2 >> 1);
-	var4 = (var3 / (bme680->cal.res_heat_range + 4));
-	var5 = (131 * bme680->cal.res_heat_val) + 65536;
-	res_heat_x100 = (int32_t)(((var4 / var5) - 250) * 34);
-	res_heat = (uint8_t)((res_heat_x100 + 50) / 100);
-	return res_heat;
-}
-#pragma GCC diagnostic pop
-
-/********************************************************************/
-uint8_t bme680_calc_target(bme680_t *bme680, double target, double ambient) {
-	if (BME680_IS_FLOAT(bme680->mode)) {
-		return calc_target_1(bme680, target, ambient);
-	} else {
-		return calc_target_2(bme680, target, ambient);
-	}
-}
-
