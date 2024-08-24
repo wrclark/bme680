@@ -28,7 +28,7 @@ The loggers spit out the following every minute:
 
 >Note: disregard measured gas resistance if the heat stability bit is not 1.
 
-## spi demo
+## bme680_{i2c,spi} demo output
 ```
 par_t1: 26203
 par_t2: 26519
@@ -67,48 +67,9 @@ gas resistance: 12100.310308 Ohm
 === heat_stab_r: 1
 ```
 
-## i2c demo
-```
-par_t1: 26125
-par_t2: 26370
-par_t3: 3
-par_p1: 36262
-par_p2: -10371
-par_p3: 88
-par_p4: 6713
-par_p5: -103
-par_p6: 30
-par_p7: 31
-par_p8: -251
-par_p9: -3158
-par_p10: 30
-par_h1: 776
-par_h2: 1010
-par_h3: 0
-par_h4: 45
-par_h5: 20
-par_h6: 120
-par_h7: -100
-par_g1: 183
-par_g2: 59281
-par_g3: 18
-range_switching_error: 19
-res_heat_range: 1
-res_heat_val: 39
-float mode
-tfine: 97289.819111
-temp: 19.001918 degC
-press: 100226.479673 Pa
-humidity: 67.022216 % RH
-gas resistance: 14702.868852 Ohm
-== for heater target=300.0 and ambient temp=19.0 (degC)
-=== gas_valid_r: 1
-=== heat_stab_r: 1
-```
-
 ## Burn-in / logging
 
-See file `example/log.c` 
+See file `cmd/log.c` 
 
 ![Graph of gas resistance measured over time](.gitea/gas.png)
 ![Graph of temperature measured over time](.gitea/temp.png)
