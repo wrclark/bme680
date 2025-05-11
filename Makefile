@@ -35,4 +35,4 @@ i2c: $(OBJECTS)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	@rm -rf $(OBJECTS)
+	@rm -f $(OBJECTS) $(BIN) $(BIN)_spi $(BIN)_i2c $(BIN)_log_spi $(BIN)_log_i2c 
