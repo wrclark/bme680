@@ -86,3 +86,5 @@ $ stdbuf -o0 ./bme680_log_spi 2>&1 | tee -a data/spi.txt &
 $ cd plot
 $ ./plot.sh
 ```
+
+This project is licensed under the terms of the GNU General Public License v2.0.
